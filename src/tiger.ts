@@ -1,6 +1,6 @@
 
 import { Logger, getLogger, configure } from  "log4js"
-const nanoid = require("nanoid")
+import { nanoid } from "nanoid"
 
 import { Resolver } from "./resolver"
 import { TigerConfig, Module, Target } from "./types"

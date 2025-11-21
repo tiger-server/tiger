@@ -2,12 +2,12 @@
   "compileOnSave": true,
   "include": ["src/**/*.ts"],
   "compilerOptions": {
-    "target": "es5",
-    "lib": ["es2015"],
+    "target": "ES2018",
+    "lib": ["es2018"],
     "outDir": "lib",
-    "watch": true,
     "declaration": true,
     "experimentalDecorators": true,
+    "module": "commonjs",
+    "moduleResolution": "node"
   }
-  
 }
