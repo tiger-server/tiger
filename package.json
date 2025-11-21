@@ -3,16 +3,21 @@
   "version": "0.5.3",
   "description": "Even simple than trigger",
   "main": "src/index.ts",
+  "type": "module",
   "repository": "https://github.com/kenpusney/tiger",
   "author": "Kimmy Leo",
   "license": "MIT",
+  "engines": {
+    "node": ">=22.6.0"
+  },
   "dependencies": {
     "cors": "^2.8.5",
     "express": "^5.1.0",
-    "log4js": "^6.9.1",
     "nanoid": "^5.1.6",
     "node-cron": "^4.2.1",
     "nodemailer": "^7.0.10",
+    "pino": "^10.1.0",
+    "pino-pretty": "^13.1.2",
     "zeromq": "^6.5.0"
   },
   "devDependencies": {

@@ -1,10 +1,10 @@
 
-import { processWithMutableState } from "./common"
-import { TigerPlugin, Tiger, ExtendedModule } from "../tiger";
-import { BaseResolver } from "../resolver"
+import { processWithMutableState } from "./common.ts"
+import type { TigerPlugin, Tiger, ExtendedModule } from "../tiger.ts";
+import { BaseResolver } from "../resolver.ts"
 
-import nodeCron = require("node-cron");
-import { Logger, getLogger } from "log4js";
+import nodeCron from "node-cron";
+import { getLogger, type Logger } from "../logger.ts";
 
 export default new class implements TigerPlugin  {
   /**

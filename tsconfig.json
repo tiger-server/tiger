@@ -1,13 +1,15 @@
 {
   "compileOnSave": true,
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "src/**/*.d.ts", "example/**/*.ts"],
   "compilerOptions": {
-    "target": "ES2018",
-    "lib": ["es2018"],
-    "outDir": "lib",
-    "declaration": true,
+    "target": "ES2022",
+    "lib": ["es2022"],
+    "noEmit": true,
     "experimentalDecorators": true,
-    "module": "commonjs",
-    "moduleResolution": "node"
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "allowImportingTsExtensions": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true
   }
 }

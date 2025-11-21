@@ -1,7 +1,7 @@
 
-import { ExtendedModule } from "./tiger"
+import type { ExtendedModule } from "./tiger.ts"
 
-import { getLogger } from  "log4js"
+import { getLogger } from "./logger.ts"
 
 export interface Resolver<Param, State> {
   readonly protocol: string

@@ -1,4 +1,4 @@
-import { Extension } from "./tiger";
+import type { Extension } from "./tiger.ts";
 
 interface MailConfig {
   sender: string

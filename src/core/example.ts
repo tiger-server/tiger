@@ -1,6 +1,6 @@
 
-import { TigerPlugin, Tiger, ExtendedModule } from "../tiger";
-import { BaseResolver } from "../resolver"
+import type { TigerPlugin, Tiger, ExtendedModule } from "../tiger.ts";
+import { BaseResolver } from "../resolver.ts"
 
 export default new class implements TigerPlugin  {
   /**

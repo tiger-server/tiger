@@ -33,7 +33,7 @@ A basic module definition has 2 parts:
 
 A processor is a function which takes few arguments and produces the state update. Usually (this is controlled by plugins) a processor is stateful, but you can ignore state update by returning an empty / undefined object.
 
-Here is a general format for modules (you can also see `example/example.js` for examples):
+Here is a general format for modules (you can also see `example/example.ts` for examples):
 ```typescript
 interface Module<Param, State> {
   id?: string // will generate a default one if not provided
@@ -59,4 +59,3 @@ interface ModuleAdapter {
 ```
 
 So as you can see the module's behavior is tightly related to it's related protocol. You can see the [Plugin](./plugin.md) page for more information about these protocol and how to work with them.
-

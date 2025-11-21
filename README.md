@@ -10,39 +10,42 @@ Tiger server is a very lightweight server for very simple process like webhooks.
 npm install tiger-server --save
 ```
 
-and create `server.js`:
-```js
+and create `server.ts`:
 
-const { Tiger, http, cron, mail } = require("tiger-server")
+```ts
+import { Tiger, http, cron, mail } from "tiger-server";
 
 const tiger = new Tiger({});
 
-tiger.use(http)
-tiger.use(cron)
-
-tiger.use(mail)
+tiger.use(http);
+tiger.use(cron);
+tiger.use(mail);
 
 tiger.define({ id: "hello", target: "zmq:hello", process: function (state, message) {
   tiger.log(`Message received: ${JSON.stringify(message)}`)
-}})
-
+}});
 
 tiger.define({ id: "cron", target: "cron:*/5 * * * * *", process: function ({ count = 0 }) {
   count++;
-  tiger.notify("zmq:hello", { count })
+  tiger.notify("zmq:hello", { count });
   return { count }
 }});
 
 tiger.define({ id: "request", target: "http:/hello", process: function (state, { req, res }) {
   tiger.notify("zmq:hello", { message: "request recieved" });
-
   res.send("success!")
-}})
+}});
 
 tiger.serve();
 ```
 
-Just run `node server.js` then you can now see these modules interactions.
+Run it with Node.js 22.6+:
+
+```
+node --experimental-strip-types server.ts
+```
+
+This relies on Node’s native TypeScript loader, so there is no build step and the code runs directly.
 
 
 > Logo is generated from [Wikipedia](https://en.wikipedia.org/wiki/File:Ghostscript_Tiger.svg), the original script is under GPL license.

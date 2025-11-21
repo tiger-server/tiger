@@ -1,7 +1,5 @@
-!lib/
 docs/
 *.tgz
-!types/
 .EditorConfig
 tsconfig.json
 example/

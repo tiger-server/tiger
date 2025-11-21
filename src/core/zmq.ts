@@ -1,10 +1,10 @@
 
-import { TigerPlugin, Tiger, ExtendedModule } from "../tiger";
-import { BaseResolver } from "../resolver"
+import type { TigerPlugin, Tiger, ExtendedModule } from "../tiger.ts";
+import { BaseResolver } from "../resolver.ts"
 
-import { processWithMutableState } from "./common";
-import { socket } from "zeromq/v5-compat"
-import { Logger, getLogger } from "log4js";
+import { processWithMutableState } from "./common.ts";
+import { socket } from "zeromq/v5-compat.js"
+import { getLogger, type Logger } from "../logger.ts";
 
 
 export default new class implements TigerPlugin  {

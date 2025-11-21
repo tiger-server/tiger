@@ -1,13 +1,11 @@
 
-import { Logger, getLogger, configure } from  "log4js"
 import { nanoid } from "nanoid"
 
-import { Resolver } from "./resolver"
-import { TigerConfig, Module, Target } from "./types"
+import type { Resolver } from "./resolver.ts"
+import type { TigerConfig, Module, Target } from "./types.ts"
+import { getLogger, type Logger } from "./logger.ts"
 
-export {
-  TigerConfig, Module, Target
-}
+export type { TigerConfig, Module, Target } from "./types.ts";
 
 function makeTargetFromString(target: string): Target {
   const EXTRACTOR = /(?<protocol>\w+):(?<path>.+)/;
@@ -23,11 +21,6 @@ export interface TigerPlugin {
   readonly id: string;
   setup(tiger: Tiger): void
 }
-
-configure({
-  appenders: { out: { type: 'stdout' }, file: {type: "file", filename: "tiger.log"} },
-  categories: { default: { appenders: ['out', 'file'], level: 'INFO' } }
-});
 
 export class Tiger {
 
@@ -129,7 +122,7 @@ export class Tiger {
   _handlerAdapter<Param, State>(handler: Module<Param, State>) {
     const tiger = this;
     return {
-      notify(target: string, param: Param) {
+      notify<T>(target: string, param: T) {
         tiger._notify(handler.id, target, param);
       },
       
@@ -154,7 +147,7 @@ export class Tiger {
 }
 
 export type Extension<Param, State> = {
-  notify(target: string, param: Param): void;
+  notify<T>(target: string, param: T): void;
   log(message: string): void;
   error(message: string): void;
   state(data?: Partial<State>): State;

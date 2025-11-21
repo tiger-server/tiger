@@ -1,10 +1,10 @@
-import { TigerPlugin, Tiger, ExtendedModule } from "../tiger";
-import { processWithMutableState } from "./common"
+import type { TigerPlugin, Tiger, ExtendedModule } from "../tiger.ts";
+import { processWithMutableState } from "./common.ts"
 
-import { BaseResolver } from "../resolver"
+import { BaseResolver } from "../resolver.ts"
 
-import express = require("express");
-import cors = require("cors");
+import express from "express";
+import cors from "cors";
 
 class HttpPlugin implements TigerPlugin {
   id: string = "http";

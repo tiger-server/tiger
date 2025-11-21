@@ -1,7 +1,7 @@
-import { TigerPlugin, Tiger } from "../tiger";
-import { BaseResolver } from "../resolver"
-import { Logger, getLogger } from "log4js";
-const mailer = require("nodemailer")
+import type { TigerPlugin, Tiger } from "../tiger.ts";
+import { BaseResolver } from "../resolver.ts"
+import { getLogger, type Logger } from "../logger.ts";
+import nodemailer from "nodemailer";
 
 interface MailParam {
   subject: string
@@ -17,7 +17,7 @@ export default new class implements TigerPlugin {
     const logger = this._logger;
     const config = tiger.config.mail
 
-    const transport = mailer.createTransport(config.transport);
+    const transport = nodemailer.createTransport(config.transport);
 
     tiger.register(new class extends BaseResolver<MailParam, object> {
       readonly protocol: string = "mail"

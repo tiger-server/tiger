@@ -1,6 +1,6 @@
 
-import { ExtendedModule } from "../tiger"
-import { getLogger } from "log4js";
+import type { ExtendedModule } from "../tiger.ts"
+import { getLogger } from "../logger.ts";
 
 const logger = getLogger("state")
 
