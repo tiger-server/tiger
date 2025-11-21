@@ -17,14 +17,19 @@ export default new class implements TigerPlugin {
     const logger = this._logger;
     const config = tiger.config.mail
 
+    if (!config) {
+      logger.warn("mail plugin requires configuration; skipping setup");
+      return;
+    }
+
     const transport = nodemailer.createTransport(config.transport);
 
     tiger.register(new class extends BaseResolver<MailParam, object> {
       readonly protocol: string = "mail"
-      notified(target: string, param: MailParam) {
+      async notified(target: string, param: MailParam) {
         logger.info(`Sending mail to ${target}: ${JSON.stringify(param)}`)
         const option = { from: config.sender, to: target, ...param }
-        transport.sendMail(option)
+        await transport.sendMail(option)
       }
     });
   }

@@ -19,11 +19,15 @@ export default new class implements TigerPlugin  {
     logger.info("initializing cron plugin")
     tiger.register(new class extends BaseResolver<object, object> {
       readonly protocol: string = "cron";
-      define(path: string, _module: ExtendedModule<object, object>) {
+      async define(path: string, _module: ExtendedModule<object, object>) {
         logger.info(`creating schedule [${path}] on module ${_module.id}`)
-        nodeCron.schedule(path, function() {
+        nodeCron.schedule(path, async () => {
           logger.info(`invoking job ${_module.id} with schedule ${path}`)
-          processWithMutableState(_module, {});
+          try {
+            await processWithMutableState(_module, {});
+          } catch (error) {
+            logger.error(`cron job ${_module.id} failed: ${error}`)
+          }
         })
       }
     });

@@ -15,11 +15,11 @@ function makeTargetFromString(target: string): Target {
 
 export type ExtendedModule<Param, State> = Module<Param, State> & Extension<Param, State>
 
-export type TigerCall = (tiger: Tiger) => void
+export type TigerCall = (tiger: Tiger) => Promise<void> | void
 
 export interface TigerPlugin {
   readonly id: string;
-  setup(tiger: Tiger): void
+  setup(tiger: Tiger): Promise<void> | void
 }
 
 export class Tiger {
@@ -44,17 +44,17 @@ export class Tiger {
     this._postInitializeProcesses = [];
   }
 
-  use(plugin: TigerPlugin): Tiger {
+  async use(plugin: TigerPlugin): Promise<Tiger> {
     if (this._plugins[plugin.id] === undefined) {
       this._plugins[plugin.id] = plugin;
-      plugin.setup(this)
+      await plugin.setup(this)
     } else {
       this._warn(`Existed plugin: ${plugin.id}`)
     }
     return this;
   }
 
-  define<Param = object, State = object>(_module: Module<Param, State>) {
+  async define<Param = object, State = object>(_module: Module<Param, State>) {
 
     _module.id = _module.id || nanoid();;
     
@@ -68,23 +68,21 @@ export class Tiger {
     const resolver = this._resolvers[protocol]
 
     if (resolver && resolver.define) {
-      resolver.define(path, extended);
+      await resolver.define(path, extended);
     } else {
       this._warn(`No valid definition handler found for protocol [${protocol}]`)
     }
   }
 
-  private _notify<Param>(from: string, target: string, param: Param) {
+  private async _notify<Param>(from: string, target: string, param: Param) {
     this._log(`Notifying target: ${target}`, `tiger:${from}`)
 
     const { protocol, path } = makeTargetFromString(target);
     const resolver = this._resolvers[protocol]
 
     if (resolver && resolver.notified) {
-      resolver.notified(path, param, (path, param) => {
-        process.nextTick(() => {
-          this._notify(target, path, param);
-        })
+      await resolver.notified(path, param, async (path, param) => {
+        await this._notify(target, path, param);
       })
     } else {
       this._warn(`No valid notification handler found for protocol [${protocol}]`)
@@ -103,10 +101,10 @@ export class Tiger {
     }
   }
 
-  serve() {
-    this._postInitializeProcesses.forEach(it => {
-      it(this);
-    })
+  async serve() {
+    for (const process of this._postInitializeProcesses) {
+      await process(this);
+    }
   }
 
   private _log(log: string, scope?: string) {
@@ -123,7 +121,7 @@ export class Tiger {
     const tiger = this;
     return {
       notify<T>(target: string, param: T) {
-        tiger._notify(handler.id, target, param);
+        return tiger._notify(handler.id, target, param);
       },
       
       log(message: string) {
@@ -147,7 +145,7 @@ export class Tiger {
 }
 
 export type Extension<Param, State> = {
-  notify<T>(target: string, param: T): void;
+  notify(target: string, param: Param): Promise<void>;
   log(message: string): void;
   error(message: string): void;
   state(data?: Partial<State>): State;

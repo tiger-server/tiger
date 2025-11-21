@@ -8,10 +8,10 @@ Tiger engine holds everything required to run the app by using plugins and defin
 
 Here is all the methods you can use on tiger engine:
 
- - `Tiger#define(module)`: to define a new module,
- - `Tiger#use(plugin)`: to use a plugin,
+ - `Tiger#define(module)`: async method to define a new module,
+ - `Tiger#use(plugin)`: async method to use a plugin,
  - `Tiger#register(resolver)`: to register a protocol resolver, only can be used in plugin definition,
- - `Tiger#serve()`: main method to start the tiger server,
+ - `Tiger#serve()`: async main method to start the tiger server,
 
 ## Plugins
 
@@ -38,7 +38,7 @@ Here is a general format for modules (you can also see `example/example.ts` for 
 interface Module<Param, State> {
   id?: string // will generate a default one if not provided
   target: string
-  process: (State, Param) => State | void
+  process: (state: State, param: Param) => Promise<Partial<State> | void> | Partial<State> | void
 }
 ```
 
@@ -51,7 +51,7 @@ Module will extend an adapter to use tiger's abilities, including:
 
 ```typescript
 interface ModuleAdapter {
-  notify(target: string, param: Param): void;
+  notify<T>(target: string, param: T): Promise<void>;
   log(message: string): void;
   error(message: string): void;
   state(data?: Partial<State>): State;

@@ -19,7 +19,11 @@ export interface TigerConfig {
 }
 
 interface Processor<Param, State, Module> {
-  (this: Module & Extension<Param, State>, state: State, param: Param): object | void
+  (
+    this: Module & Extension<Param, State>,
+    state: State,
+    param: Param
+  ): Promise<Partial<State> | void> | Partial<State> | void
 }
 export interface Module<Param, State> {
   id?: string

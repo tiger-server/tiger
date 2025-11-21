@@ -31,7 +31,7 @@ Literally, `cron` is a plugin that allows module runs based on a cron expression
 {
   target: "cron:*/5 * * * * *", 
 
-  process: function ({ count = 0 }) {
+  async process({ count = 0 }) {
     count++;
     return { count }
   }
@@ -59,7 +59,7 @@ Literally, `cron` is a plugin that allows module runs based on a cron expression
 ```js
 {
   target: "http:hello", 
-  process: function (state, {req, res}) {
+  async process(state, {req, res}) {
     res.send("hello world");
     return state;
   }
@@ -89,8 +89,8 @@ You can either create a module follows a queue, or send messages to the queue in
 ```js
 {
   target: "zmq:hello", 
-  state: function (state, message) {
-    tiger.log(`Message received: ${JSON.stringify(message)}`)
+  async process(state, message) {
+    this.log(`Message received: ${JSON.stringify(message)}`)
   }
 }
 ```
@@ -138,7 +138,7 @@ Here is required configurations:
 
 ```js
 // `from` and `to` can be omitted since it can be inferred from sender and target.
-this.notify("mail:someone@another.com", { 
+await this.notify("mail:someone@another.com", { 
   subject: "hello", 
   text: "hello world", 
   html: "<p>hello world</p>" 
@@ -154,15 +154,15 @@ A plugin is just a function which takes tiger instance as argument and do some d
 ```js
 const somePlugin = {
   id: "<plugin id>"
-  setup: function(tiger) {
+  setup: async function(tiger) {
     const resolver = {
       protocol: "<protocol>",
-      define(path, module) {
-        // do definition work
+      async define(path, module) {
+        // do async definition work
       },
 
-      notified(path, param, next) {
-        // do notification work
+      async notified(path, param, next) {
+        // do async notification work
       }
     },
 

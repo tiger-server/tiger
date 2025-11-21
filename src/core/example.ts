@@ -14,21 +14,23 @@ export default new class implements TigerPlugin  {
 
       registry: { [key: string]: ExtendedModule<{ max: number }, { number: number }> } = {};
 
-      define(path: string, _module: ExtendedModule<{ max: number }, { number: number }>) {
+      async define(path: string, _module: ExtendedModule<{ max: number }, { number: number }>) {
         if (!this.registry[path]) {
           this.registry[path] = _module;
         }
       } 
 
-      notified(path: string, param, next?: (path: string, param: object) => void) {
+      async notified(path: string, param, next?: (path: string, param: object) => Promise<void>) {
         if (this.registry[path]) {
           const { max  = 0 } = param;
           const _module = this.registry[path];
           const state = _module.state();
           const { number = 0 } = state
           if (number < max) {
-            this.run(_module, state, param, number)
-            next(`${this.protocol}:${path}`, param)
+            await this.run(_module, state, param, number)
+            if (next) {
+              await next(`${this.protocol}:${path}`, param)
+            }
           } else {
             this.reset(_module)
           }
@@ -39,8 +41,8 @@ export default new class implements TigerPlugin  {
         _module.state({number: 0})
       }
 
-      run(_module, state, param, number) {
-        _module.process(state, param)
+      async run(_module, state, param, number) {
+        await _module.process(state, param)
         _module.state({number: number + 1})
       }
     });
