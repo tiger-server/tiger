@@ -1,21 +1,51 @@
 import type { Extension } from "./tiger.ts";
 
 interface MailConfig {
-  sender: string
-  channel: string
+  sender: string;
+  channel: string;
   transport: {
-    host: string
-    port: number
-    secure: boolean
+    host: string;
+    port: number;
+    secure: boolean;
     auth: {
-      user: string
-      pass: string
-    }
-  }
+      user: string;
+      pass: string;
+    };
+  };
+}
+
+interface CronConfig {
+  redisUrl?: string;
+  scheduleKey?: string;
+  pollIntervalMs?: number;
+  requeueDelayMs?: number;
+  levelDbPath?: string;
+}
+
+interface HttpConfig {
+  port?: number;
+  host?: string;
+}
+
+interface MonitorConfig {
+  port?: number;
+  host?: string;
+  basePath?: string;
+  disabled?: boolean;
+  dbPath?: string;
+}
+
+interface ZmqConfig {
+  bindEndpoint?: string;
+  connectEndpoint?: string;
 }
 
 export interface TigerConfig {
-  mail?: MailConfig 
+  mail?: MailConfig;
+  cron?: CronConfig;
+  http?: HttpConfig;
+  monitor?: MonitorConfig;
+  zmq?: ZmqConfig;
 }
 
 interface Processor<Param, State, Module> {

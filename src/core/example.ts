@@ -1,14 +1,18 @@
 
 import type { TigerPlugin, Tiger, ExtendedModule } from "../tiger.ts";
 import { BaseResolver } from "../resolver.ts"
+import { processWithMutableState } from "./common.ts";
+import { getLogger } from "../logger.ts";
 
 export default new class implements TigerPlugin  {
   /**
    * cron protocol
    */
   id: string = "example";  
+  _logger = getLogger("example");
   
   setup(tiger: Tiger): void {
+    const logger = this._logger;
     tiger.register(new class extends BaseResolver<{ max: number }, { number: number }> {
       readonly protocol: string = "example";
 
@@ -20,30 +24,20 @@ export default new class implements TigerPlugin  {
         }
       } 
 
-      async notified(path: string, param, next?: (path: string, param: object) => Promise<void>) {
+      async notified(path: string, param: {max: number}, next?: (path: string, param: object) => Promise<void>) {
         if (this.registry[path]) {
-          const { max  = 0 } = param;
           const _module = this.registry[path];
-          const state = _module.state();
-          const { number = 0 } = state
-          if (number < max) {
-            await this.run(_module, state, param, number)
-            if (next) {
-              await next(`${this.protocol}:${path}`, param)
-            }
-          } else {
-            this.reset(_module)
+          await this.run(_module, param)
+          const result = _module.state();
+          if (result.number !== 0 && next) {
+            logger.info(`notifying next with state ${JSON.stringify(result)}`);
+            await next(`${this.protocol}:${path}`, param);
           }
         }
       }
 
-      reset(_module) {
-        _module.state({number: 0})
-      }
-
-      async run(_module, state, param, number) {
-        await _module.process(state, param)
-        _module.state({number: number + 1})
+      async run(_module: ExtendedModule<{ max: number }, { number: number }>, param: { max: number }) {
+        await processWithMutableState(_module, param)
       }
     });
   }

@@ -6,6 +6,12 @@ types/
 .nyc_output/
 coverage/
 .data/
+.tiger-cron/
+.tiger-monitor/
+.tiger-monitor/*
+
+.tiger-example-db*
+
 yarn.lock
 
 *.log

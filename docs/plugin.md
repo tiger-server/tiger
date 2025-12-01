@@ -11,7 +11,27 @@ Tiger bundled with few standard plugins:
 
 ### `cron`
 
-Literally, `cron` is a plugin that allows module runs based on a cron expression. it only take effect when you define a module. It doesn't provide any messages but actually mutates the state.
+The `cron` plugin now schedules work through Redis, so every Tiger instance connected to the same Redis sorted set will race to claim the next due job. When a module is triggered its next run is immediately enqueued again, which keeps scheduling accurate even across process restarts. Make sure a Redis server is reachable before calling `tiger.use(cron)`.
+
+You can configure the scheduler either via the Tiger config or environment variables:
+
+```ts
+const tiger = new Tiger({
+  cron: {
+    redisUrl: "redis://127.0.0.1:6379",
+    scheduleKey: "tiger:cron:schedule",
+    pollIntervalMs: 1000,
+    requeueDelayMs: 5000,
+    levelDbPath: ".tiger-cron"
+  }
+});
+```
+
+Environment fallbacks are `TIGER_CRON_REDIS_URL`, `TIGER_CRON_SCHEDULE_KEY`, `TIGER_CRON_POLL_INTERVAL_MS`, `TIGER_CRON_REQUEUE_DELAY_MS`, and `TIGER_CRON_LEVEL_PATH`.
+
+If `redisUrl` isn’t provided the scheduler degrades gracefully into a single-node mode using a LevelDB queue at `levelDbPath`.
+
+It only takes effect when you define a module on the `cron:` protocol. It doesn't provide any messages but mutates the module state when a schedule fires.
 
 #### Attributes
 
@@ -42,6 +62,8 @@ Literally, `cron` is a plugin that allows module runs based on a cron expression
 
 `http` plugin allows you runs on a specific http path on Tiger server. `http` plugin is stateful and provide both a HTTP request and a response object as message to the module.
 
+Configure the listening socket via `tiger.config.http` or `TIGER_HTTP_HOST`/`TIGER_HTTP_PORT`. Defaults are `0.0.0.0:9527`, which means you can run several Tiger instances on the same machine by pointing each one at a different port.
+
 #### Attributes
 
 | Attributes    	| Value           	|
@@ -71,6 +93,19 @@ Literally, `cron` is a plugin that allows module runs based on a cron expression
 
 `zmq` plugin creates a set of queues to communicate between modules.
 You can either create a module follows a queue, or send messages to the queue in any module(with `Tiger#notify`).
+
+Configure the ZeroMQ sockets per instance:
+
+```ts
+const tiger = new Tiger({
+  zmq: {
+    bindEndpoint: "tcp://0.0.0.0:9528",
+    connectEndpoint: "tcp://127.0.0.1:9528"
+  }
+});
+```
+
+Environment fallbacks `TIGER_ZMQ_BIND` and `TIGER_ZMQ_CONNECT` remain available.
 
 #### Attributes
 

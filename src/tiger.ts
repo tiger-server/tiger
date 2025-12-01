@@ -4,6 +4,8 @@ import { nanoid } from "nanoid"
 import type { Resolver } from "./resolver.ts"
 import type { TigerConfig, Module, Target } from "./types.ts"
 import { getLogger, type Logger } from "./logger.ts"
+import monitor, { configureMonitorServer } from "./monitor.ts";
+import { resolveMonitorConfig } from "./config.ts";
 
 export type { TigerConfig, Module, Target } from "./types.ts";
 
@@ -42,6 +44,7 @@ export class Tiger {
 
     this._logger = getLogger("tiger");
     this._postInitializeProcesses = [];
+    configureMonitorServer(resolveMonitorConfig(this.config));
   }
 
   async use(plugin: TigerPlugin): Promise<Tiger> {
@@ -61,6 +64,7 @@ export class Tiger {
     const extended = Object.assign(_module, this._handlerAdapter(_module))
 
     this._modules[_module.id] = extended;
+    await monitor.registerModule(extended);
 
     const target = makeTargetFromString(extended.target);
     const { path, protocol } = target;

@@ -6,6 +6,7 @@ import { BaseResolver } from "../resolver.ts"
 import express from "express";
 import cors from "cors";
 import { getLogger } from "../logger.ts";
+import { resolveHttpConfig } from "../config.ts";
 
 class HttpPlugin implements TigerPlugin {
   id: string = "http";
@@ -16,6 +17,7 @@ class HttpPlugin implements TigerPlugin {
     const server = this._server;
     const logger = this._logger;
     server.use(cors())
+    const httpConfig = resolveHttpConfig(tiger.config);
   
     tiger.register(new class extends BaseResolver<object, object> {
       readonly protocol: string = "http";
@@ -32,7 +34,11 @@ class HttpPlugin implements TigerPlugin {
     })
   
     process.nextTick(() => {
-      server.listen(9527);
+      server.listen(httpConfig.port, httpConfig.host, () => {
+        logger.info(
+          `http server listening on http://${httpConfig.host}:${httpConfig.port}`
+        );
+      });
     });
   }
 }

@@ -4,21 +4,23 @@ import { BaseResolver } from "../resolver.ts"
 import { processWithMutableState } from "./common.ts";
 import { Publisher, Subscriber } from "zeromq"
 import { getLogger, type Logger } from "../logger.ts";
-
-const DEFAULT_BIND_ENDPOINT = process.env.TIGER_ZMQ_BIND ?? "tcp://0.0.0.0:9528";
-const DEFAULT_CONNECT_ENDPOINT = process.env.TIGER_ZMQ_CONNECT ?? "tcp://127.0.0.1:9528";
+import { resolveZmqConfig } from "../config.ts";
 
 export default new class implements TigerPlugin  {
   id: string = "zmq";  
   _logger: Logger = getLogger("zmq")
   
   async setup(tiger: Tiger): Promise<void> {
+    const { bindEndpoint, connectEndpoint } = resolveZmqConfig(tiger.config);
+
     const publisher = new Publisher();
     const logger = this._logger;
-    logger.info("initializing zmq plugin")
+    logger.info(
+      `initializing zmq plugin (bind=${bindEndpoint}, connect=${connectEndpoint})`
+    );
 
-    await publisher.bind(DEFAULT_BIND_ENDPOINT);
-    logger.info(`zmq publisher bound to ${DEFAULT_BIND_ENDPOINT}`);
+    await publisher.bind(bindEndpoint);
+    logger.info(`zmq publisher bound to ${bindEndpoint}`);
 
     tiger.register(new class extends BaseResolver<any, any> {
 
@@ -30,7 +32,7 @@ export default new class implements TigerPlugin  {
         this.registry.set(path, _module);
         if (!this.subscribers.has(path)) {
           const subscriber = new Subscriber();
-          await subscriber.connect(DEFAULT_CONNECT_ENDPOINT);
+          await subscriber.connect(connectEndpoint);
           await subscriber.subscribe(path);
           logger.info(`subscriber created for topic [${path}]`);
           this.subscribers.set(path, subscriber);
