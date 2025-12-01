@@ -1,8 +1,8 @@
 
 import type { TigerPlugin, Tiger, ExtendedModule } from "../tiger.ts";
-import { BaseResolver } from "../resolver.ts"
-import { processWithMutableState } from "./common.ts";
+import { BaseResolver } from "../resolver.ts";
 import { getLogger } from "../logger.ts";
+import { dispatchModule } from "../runner.ts";
 
 export default new class implements TigerPlugin  {
   /**
@@ -36,8 +36,11 @@ export default new class implements TigerPlugin  {
         }
       }
 
-      async run(_module: ExtendedModule<{ max: number }, { number: number }>, param: { max: number }) {
-        await processWithMutableState(_module, param)
+      async run(
+        _module: ExtendedModule<{ max: number }, { number: number }>,
+        param: { max: number }
+      ) {
+        await dispatchModule(_module, param);
       }
     });
   }

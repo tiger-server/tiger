@@ -1,10 +1,10 @@
 import type { TigerPlugin, Tiger, ExtendedModule } from "../tiger.ts";
 import { BaseResolver } from "../resolver.ts"
 
-import { processWithMutableState } from "./common.ts";
-import { Publisher, Subscriber } from "zeromq"
+import { Publisher, Subscriber } from "zeromq";
 import { getLogger, type Logger } from "../logger.ts";
 import { resolveZmqConfig } from "../config.ts";
+import { dispatchModule } from "../runner.ts";
 
 export default new class implements TigerPlugin  {
   id: string = "zmq";  
@@ -55,7 +55,7 @@ export default new class implements TigerPlugin  {
               messageBuf && messageBuf.length > 0
                 ? JSON.parse(Buffer.from(messageBuf).toString())
                 : {};
-            await processWithMutableState(module, message);
+            await dispatchModule(module, message);
           }
         })().catch(error => {
           logger.error(`subscriber for topic [${path}] failed: ${error}`);

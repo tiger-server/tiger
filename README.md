@@ -91,4 +91,6 @@ This relies on Node’s native TypeScript loader, so there is no build step and 
 
 > The `cron` plugin coordinates schedules via Redis. Start a Redis server (or point `TIGER_CRON_REDIS_URL` at your cluster) before running Tiger if you use cron modules. Multiple Tiger instances can share the same Redis queue and will cooperatively claim jobs. If you omit `cron.redisUrl`, Tiger falls back to a local LevelDB queue stored at `TIGER_CRON_LEVEL_PATH` (defaults to `.tiger-cron`), which is ideal for single-node setups.
 
+> To build *distributed modules*, configure `distributed.redisUrl` (or `TIGER_DISTRIBUTED_REDIS_URL`) and define the module with both `id` and `distributed: true`. All nodes that define the module automatically join a Redis-backed work queue, share their module state, and heartbeat into a registry so work can be reassigned if a node disappears.
+
 > Logo is generated from [Wikipedia](https://en.wikipedia.org/wiki/File:Ghostscript_Tiger.svg), the original script is under GPL license.

@@ -180,6 +180,27 @@ await this.notify("mail:someone@another.com", {
 });
 ```
 
+### Distributed modules
+
+Set `distributed: true` and a stable `id` on any module to turn it into a distributed worker. Configure `distributed.redisUrl` (or `TIGER_DISTRIBUTED_REDIS_URL`) so Tiger instances can coordinate through Redis. Each node:
+
+- pushes new work into the module’s Redis queue instead of executing immediately,
+- pulls jobs from that queue and updates the shared module state stored in Redis,
+- heartbeats into a registry so stalled jobs are reassigned if a node goes offline for more than 10 s.
+
+```ts
+await tiger.define({
+  id: "shared-worker",
+  distributed: true,
+  target: "http:/tasks",
+  async process(state, { req, res }) {
+    const count = (state.count ?? 0) + 1;
+    await this.notify("zmq:logs", { count });
+    return { count };
+  }
+});
+```
+
 ## Self-defined Plugins
 
 ### How plugin works

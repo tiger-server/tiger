@@ -34,6 +34,9 @@ async function main() {
         }
       },
       channel: "mail:someone@another.com"
+    },
+    distributed: {
+      redisUrl: "redis://127.0.0.1:6379",
     }
   });
 
@@ -44,7 +47,9 @@ async function main() {
   await tiger.use(zmq);
 
   await tiger.define<{ max?: number }, { number?: number, count?: number }>({
+    id: "distributed-hello",
     target: "example:hello",
+    distributed: true,
     async process(_state, message) {
       const { number = 0, count = 0 } = this.state();
       const { max = 0 } = message || {};
@@ -59,6 +64,7 @@ async function main() {
   await tiger.define<{}, {count: number}>({
     id: "distributed-scheduled-job",
     target: "cron:*/5 * * * * *",
+    distributed: true,
     async process({ count = 0 }) {
       const nextCount = count + 1;
       await this.notify("zmq:hello", { message: "hello world" });

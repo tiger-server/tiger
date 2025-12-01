@@ -40,12 +40,20 @@ interface ZmqConfig {
   connectEndpoint?: string;
 }
 
+interface DistributedConfig {
+  redisUrl?: string;
+  namespace?: string;
+  heartbeatIntervalMs?: number;
+  heartbeatTimeoutMs?: number;
+}
+
 export interface TigerConfig {
   mail?: MailConfig;
   cron?: CronConfig;
   http?: HttpConfig;
   monitor?: MonitorConfig;
   zmq?: ZmqConfig;
+  distributed?: DistributedConfig;
 }
 
 interface Processor<Param, State, Module> {
@@ -59,6 +67,7 @@ export interface Module<Param, State> {
   id?: string
   readonly target: string
   readonly process: Processor<Param, State, this>
+  readonly distributed?: boolean
 }
 
 export interface Target {

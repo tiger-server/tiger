@@ -1,6 +1,5 @@
 import { CronExpressionParser } from "cron-parser";
 
-import { processWithMutableState } from "./common.ts";
 import type { TigerPlugin, Tiger, ExtendedModule } from "../tiger.ts";
 import { BaseResolver } from "../resolver.ts";
 import { getLogger, type Logger } from "../logger.ts";
@@ -11,6 +10,7 @@ import {
 import type { CronScheduleStore } from "./cron/scheduler.ts";
 import { createRedisScheduleStore } from "./cron/redis-store.ts";
 import { createLevelScheduleStore } from "./cron/level-store.ts";
+import { dispatchModule } from "../runner.ts";
 
 type CronModuleEntry = {
   readonly expression: string;
@@ -98,22 +98,24 @@ export default new (class implements TigerPlugin {
     moduleId: string,
     expression: string,
     reference?: Date
-  ) {
+  ): Promise<Date | undefined> {
     try {
       const nextRun = this._computeNextRun(expression, reference);
       if (!nextRun) {
-        return;
+        return undefined;
       }
       await this._store.schedule(moduleId, nextRun.getTime());
       this._logger.debug?.(
         `scheduled ${moduleId} for ${nextRun.toISOString()}`
       );
+      return nextRun;
     } catch (error) {
       this._logger.error(
         `failed to schedule cron module ${moduleId}: ${
           error instanceof Error ? error.message : String(error)
         }`
       );
+      return undefined;
     }
   }
 
@@ -159,11 +161,24 @@ export default new (class implements TigerPlugin {
       return;
     }
 
-    await this._scheduleNextRun(
+    const nextRun = await this._scheduleNextRun(
       moduleId,
       entry.expression,
       new Date(scheduledFor)
     );
+    const now = Date.now();
+    if (
+      nextRun &&
+      now - scheduledFor >
+        Math.max(nextRun.getTime() - scheduledFor, this._config.pollIntervalMs)
+    ) {
+      this._logger.warn(
+        `dropping stale cron job ${moduleId} scheduled for ${new Date(
+          scheduledFor
+        ).toISOString()}`
+      );
+      return;
+    }
 
     this._logger.info(
       `invoking cron job ${moduleId} scheduled for ${new Date(
@@ -171,7 +186,7 @@ export default new (class implements TigerPlugin {
       ).toISOString()}`
     );
     try {
-      await processWithMutableState(entry.module, {});
+      await dispatchModule(entry.module, {});
     } catch (error) {
       this._logger.error(
         `cron job ${moduleId} failed: ${

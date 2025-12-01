@@ -1,11 +1,20 @@
 
-import { nanoid } from "nanoid"
+import { nanoid } from "nanoid";
 
-import type { Resolver } from "./resolver.ts"
-import type { TigerConfig, Module, Target } from "./types.ts"
-import { getLogger, type Logger } from "./logger.ts"
+import type { Resolver } from "./resolver.ts";
+import type { TigerConfig, Module, Target } from "./types.ts";
+import { getLogger, type Logger } from "./logger.ts";
 import monitor, { configureMonitorServer } from "./monitor.ts";
-import { resolveMonitorConfig } from "./config.ts";
+import {
+  resolveDistributedConfig,
+  resolveMonitorConfig,
+} from "./config.ts";
+import { DISTRIBUTED_STATE_SYMBOL } from "./core/common.ts";
+import {
+  initDistributedCoordinator,
+  getDistributedCoordinator,
+} from "./distributed/index.ts";
+import type { DistributedCoordinator } from "./distributed/controller.ts";
 
 export type { TigerConfig, Module, Target } from "./types.ts";
 
@@ -30,10 +39,12 @@ export class Tiger {
   private _plugins: { [key: string]: TigerPlugin }
   private _modules: { [key: string]: Module<any, any> }
   private _resolvers: { [key: string]: Resolver<any, any> }
-  private _state: { [key: string]: object }
-  private _logger: Logger
+  private _state: { [key: string]: object };
+  private _logger: Logger;
+  private _instanceId: string;
+  private _distributed?: DistributedCoordinator;
 
-  private _postInitializeProcesses: Array<TigerCall>
+  private _postInitializeProcesses: Array<TigerCall>;
 
   constructor(config: TigerConfig = {}) {
     this.config = config;
@@ -44,6 +55,7 @@ export class Tiger {
 
     this._logger = getLogger("tiger");
     this._postInitializeProcesses = [];
+    this._instanceId = nanoid();
     configureMonitorServer(resolveMonitorConfig(this.config));
   }
 
@@ -58,13 +70,20 @@ export class Tiger {
   }
 
   async define<Param = object, State = object>(_module: Module<Param, State>) {
+    if (_module.distributed && !_module.id) {
+      throw new Error(
+        "Distributed modules must provide a stable id in their definition"
+      );
+    }
+    _module.id = _module.id || nanoid();
 
-    _module.id = _module.id || nanoid();;
-    
-    const extended = Object.assign(_module, this._handlerAdapter(_module))
+    const extended = Object.assign(_module, this._handlerAdapter(_module));
 
     this._modules[_module.id] = extended;
     await monitor.registerModule(extended);
+    if (extended.distributed) {
+      this._ensureDistributed().registerModule(extended);
+    }
 
     const target = makeTargetFromString(extended.target);
     const { path, protocol } = target;
@@ -121,6 +140,24 @@ export class Tiger {
     this._logger.warn(`${scope ? `[${scope}] -- `: ""}${log}`);
   }
 
+  private _ensureDistributed(): DistributedCoordinator {
+    if (!this._distributed) {
+      const config = resolveDistributedConfig(this.config);
+      if (!config) {
+        throw new Error(
+          "Distributed modules require a distributed.redisUrl configuration"
+        );
+      }
+      const logger = getLogger("distributed");
+      this._distributed = initDistributedCoordinator(
+        config,
+        this._instanceId,
+        logger
+      );
+    }
+    return this._distributed;
+  }
+
   _handlerAdapter<Param, State>(handler: Module<Param, State>) {
     const tiger = this;
     return {
@@ -137,11 +174,24 @@ export class Tiger {
       },
   
       state(data?: Partial<State>): State {
-        const { id } = handler 
-        if (data) {
-          return tiger._stat(id, { ...tiger._stat(id), ...(data as object) }) as any as State
+        const { id } = handler;
+        if (handler.distributed) {
+          const cache =
+            ((handler as any)[DISTRIBUTED_STATE_SYMBOL] as object | undefined) ??
+            {};
+          (handler as any)[DISTRIBUTED_STATE_SYMBOL] = cache;
+          if (data) {
+            Object.assign(cache, data as object);
+          }
+          return cache as State;
         }
-        return tiger._stat(id) as any as State
+        if (data) {
+          return tiger._stat(id, {
+            ...tiger._stat(id),
+            ...(data as object),
+          }) as any as State;
+        }
+        return tiger._stat(id) as any as State;
       },
     }
   }

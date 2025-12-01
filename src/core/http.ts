@@ -1,12 +1,11 @@
 import type { TigerPlugin, Tiger, ExtendedModule } from "../tiger.ts";
-import { processWithMutableState } from "./common.ts"
-
-import { BaseResolver } from "../resolver.ts"
+import { BaseResolver } from "../resolver.ts";
 
 import express from "express";
 import cors from "cors";
 import { getLogger } from "../logger.ts";
 import { resolveHttpConfig } from "../config.ts";
+import { dispatchModule } from "../runner.ts";
 
 class HttpPlugin implements TigerPlugin {
   id: string = "http";
@@ -24,7 +23,7 @@ class HttpPlugin implements TigerPlugin {
       async define(path: string, _module: ExtendedModule<object, object>) {
         server.get(path, async (req, res) => {
           try {
-            await processWithMutableState(_module, {req, res})
+            await dispatchModule(_module, { req, res });
           } catch (error) {
             logger.error(`http handler error on ${path}: ${error}`)
             res.status(500).send("Internal Server Error");

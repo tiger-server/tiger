@@ -11,6 +11,9 @@ const DEFAULT_MONITOR_DB = ".tiger-monitor";
 const DEFAULT_ZMQ_BIND = "tcp://0.0.0.0:9528";
 const DEFAULT_ZMQ_CONNECT = "tcp://127.0.0.1:9528";
 const DEFAULT_CRON_LEVEL_DB = ".tiger-cron";
+const DEFAULT_DISTRIBUTED_NAMESPACE = "tiger:distributed";
+const DEFAULT_HEARTBEAT_INTERVAL = 3000;
+const DEFAULT_HEARTBEAT_TIMEOUT = 10000;
 
 function parseNumber(value: string | undefined, fallback: number): number {
   if (value === undefined) {
@@ -61,6 +64,13 @@ export interface ResolvedCronConfig {
 export interface ResolvedZmqConfig {
   bindEndpoint: string;
   connectEndpoint: string;
+}
+
+export interface ResolvedDistributedConfig {
+  redisUrl: string;
+  namespace: string;
+  heartbeatIntervalMs: number;
+  heartbeatTimeoutMs: number;
 }
 
 export function resolveHttpConfig(config?: TigerConfig): ResolvedHttpConfig {
@@ -121,4 +131,32 @@ export function resolveZmqConfig(config?: TigerConfig): ResolvedZmqConfig {
     process.env.TIGER_ZMQ_CONNECT ??
     DEFAULT_ZMQ_CONNECT;
   return { bindEndpoint, connectEndpoint };
+}
+
+export function resolveDistributedConfig(
+  config?: TigerConfig
+): ResolvedDistributedConfig | undefined {
+  const distributed = config?.distributed;
+  const redisUrl =
+    distributed?.redisUrl ?? process.env.TIGER_DISTRIBUTED_REDIS_URL;
+  if (!redisUrl) {
+    return undefined;
+  }
+  const namespace =
+    distributed?.namespace ??
+    process.env.TIGER_DISTRIBUTED_NAMESPACE ??
+    DEFAULT_DISTRIBUTED_NAMESPACE;
+  const heartbeatIntervalMs =
+    distributed?.heartbeatIntervalMs ??
+    parseNumber(
+      process.env.TIGER_DISTRIBUTED_HEARTBEAT_INTERVAL,
+      DEFAULT_HEARTBEAT_INTERVAL
+    );
+  const heartbeatTimeoutMs =
+    distributed?.heartbeatTimeoutMs ??
+    parseNumber(
+      process.env.TIGER_DISTRIBUTED_HEARTBEAT_TIMEOUT,
+      DEFAULT_HEARTBEAT_TIMEOUT
+    );
+  return { redisUrl, namespace, heartbeatIntervalMs, heartbeatTimeoutMs };
 }
