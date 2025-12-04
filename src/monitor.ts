@@ -10,11 +10,23 @@ import {
   resolveMonitorConfig,
   type ResolvedMonitorConfig,
 } from "./config.ts";
+import {
+  getDistributedCoordinator,
+  getDistributedHeartbeatTimeout,
+} from "./distributed/index.ts";
+import type { PersistenceProvider } from "./persistence/index.ts";
 
 const logger = getLogger("monitor");
+let managementProvider: PersistenceProvider | undefined;
+
+export function configureManagementProvider(provider: PersistenceProvider) {
+  managementProvider = provider;
+}
 
 const DEFAULT_HISTORY_LIMIT = 10;
 const MAX_HISTORY_LIMIT = 100;
+export const MANAGEMENT_BASE_PATH = "/tiger/manage";
+const MANAGEMENT_API_ROUTE = `${MANAGEMENT_BASE_PATH}/api/nodes`;
 
 let monitorOptions: ResolvedMonitorConfig = resolveMonitorConfig();
 let monitorApiRoute = resolveMonitorPath(
@@ -412,6 +424,7 @@ function startMonitorServer() {
 
   const app = express();
   app.use(cors());
+  app.use(express.json());
 
   app.get(monitorApiRoute, async (req, res) => {
     const limit = parseHistoryLimit((req.query as Record<string, unknown>)?.n);
@@ -442,6 +455,8 @@ function startMonitorServer() {
       res.redirect(monitorUiRoute);
     });
   }
+
+  registerManagementRoutes(app);
 
   const server = app.listen(monitorOptions.port, monitorOptions.host, () => {
     logger.info(
@@ -762,6 +777,278 @@ function renderMonitorPage({
       limitInput.value = initialLimit;
       updateQuery(initialLimit);
       loadModules(initialLimit);
+    </script>
+  </body>
+</html>`;
+}
+
+function registerManagementRoutes(app: express.Express) {
+  app.get(MANAGEMENT_BASE_PATH, (_req, res) => {
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.send(renderManagementPage());
+  });
+
+  app.get(MANAGEMENT_API_ROUTE, async (_req, res) => {
+    if (!managementProvider) {
+      res
+        .status(503)
+        .json({ error: "Persistence provider unavailable", nodes: [] });
+      return;
+    }
+    const nodes = await managementProvider.listNodes();
+    const now = Date.now();
+    const timeout = getDistributedHeartbeatTimeout() ?? 10000;
+    res.json({
+      nodes: nodes.map((node) => ({
+        ...node,
+        monitorUrl: node.metadata?.monitorUrl,
+        managementUrl: node.metadata?.managementUrl,
+        online: node.lastHeartbeat
+          ? now - node.lastHeartbeat <= timeout
+          : true,
+      })),
+      heartbeatTimeout: timeout,
+    });
+  });
+
+  app.post(`${MANAGEMENT_API_ROUTE}/:id`, async (req, res) => {
+    if (!managementProvider) {
+      res.status(503).json({ error: "Persistence provider unavailable" });
+      return;
+    }
+    const { enabled } = req.body ?? {};
+    if (typeof enabled !== "boolean") {
+      res.status(400).json({ error: "Missing 'enabled' boolean" });
+      return;
+    }
+    await managementProvider.setNodeDesiredState(req.params.id, enabled);
+    res.json({ success: true });
+  });
+
+  app.get(`${MANAGEMENT_BASE_PATH}/api/jobs`, async (req, res) => {
+    if (!managementProvider) {
+      res.status(503).json({ error: "Persistence provider unavailable" });
+      return;
+    }
+    const limit = Number.parseInt((req.query.limit as string) ?? "50", 10);
+    const jobs = await managementProvider.listJobHistory(limit);
+    res.json({ jobs });
+  });
+}
+
+function renderManagementPage(): string {
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Tiger Management</title>
+    <style>
+      body {
+        font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+        margin: 0;
+        padding: 24px;
+        background-color: #f4f6fb;
+        color: #1f2937;
+      }
+      h1 {
+        margin-bottom: 16px;
+      }
+      .toolbar {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 16px;
+      }
+      button {
+        padding: 8px 12px;
+        border-radius: 6px;
+        border: none;
+        background-color: #2563eb;
+        color: #fff;
+        cursor: pointer;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        background: #fff;
+        border-radius: 12px;
+        overflow: hidden;
+      }
+      th, td {
+        padding: 12px;
+        border-bottom: 1px solid #e5e7eb;
+        text-align: left;
+        font-size: 14px;
+      }
+      tr:last-child td {
+        border-bottom: none;
+      }
+      .status-online {
+        color: #16a34a;
+        font-weight: 600;
+      }
+      .status-offline {
+        color: #dc2626;
+        font-weight: 600;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Tiger Management</h1>
+    <div class="toolbar">
+      <button id="refresh-btn">Refresh</button>
+      <a href="${monitorUiRoute}" style="margin-left:auto;">View Module Monitor</a>
+    </div>
+    <div id="manage-status"></div>
+    <div id="nodes"></div>
+    <h2>Recent Jobs</h2>
+    <div id="jobs"></div>
+    <script>
+      const API_ENDPOINT = "${MANAGEMENT_API_ROUTE}";
+      const statusEl = document.getElementById("manage-status");
+      const nodesEl = document.getElementById("nodes");
+      const jobsEl = document.getElementById("jobs");
+      const refreshBtn = document.getElementById("refresh-btn");
+
+      async function loadData() {
+        statusEl.textContent = "Loading...";
+        try {
+          const [nodeRes, jobRes] = await Promise.all([
+            fetch(API_ENDPOINT),
+            fetch("${MANAGEMENT_BASE_PATH}/api/jobs")
+          ]);
+          if (!nodeRes.ok) {
+            throw new Error(await nodeRes.text());
+          }
+          if (!jobRes.ok) {
+            throw new Error(await jobRes.text());
+          }
+          const nodePayload = await nodeRes.json();
+          const jobPayload = await jobRes.json();
+          renderNodes(nodePayload.nodes || []);
+          renderJobs(jobPayload.jobs || []);
+          statusEl.textContent = "";
+        } catch (error) {
+          statusEl.textContent = error instanceof Error ? error.message : String(error);
+          nodesEl.innerHTML = "";
+          jobsEl.innerHTML = "";
+        }
+      }
+
+      function renderNodes(nodes) {
+        if (!nodes.length) {
+          nodesEl.innerHTML = "<p>No registered nodes.</p>";
+          return;
+        }
+        const rows = nodes
+          .map((node) => {
+            const online = node.online ? "status-online" : "status-offline";
+            const nextState = node.desiredEnabled ? "Disable" : "Enable";
+            const monitorLink = node.monitorUrl
+              ? '<a href="' + node.monitorUrl + '" target="_blank" rel="noopener">Monitor</a>'
+              : "-";
+            const manageLink = node.managementUrl
+              ? '<a href="' + node.managementUrl + '" target="_blank" rel="noopener">Manage</a>'
+              : "-";
+            return \`
+              <tr>
+                <td>\${node.id}</td>
+                <td class="\${online}">\${node.online ? "Online" : "Offline"}</td>
+                <td>\${node.enabled ? "Enabled" : "Disabled"}</td>
+                <td>\${node.desiredEnabled ? "Enabled" : "Disabled"}</td>
+                <td>\${monitorLink}</td>
+                <td>\${manageLink}</td>
+                <td>\${new Date(node.lastHeartbeat).toLocaleString()}</td>
+                <td>
+                  <button data-node="\${node.id}" data-enabled="\${!node.desiredEnabled}">
+                    \${nextState}
+                  </button>
+                </td>
+              </tr>
+            \`;
+          })
+          .join("");
+        nodesEl.innerHTML = \`
+          <table>
+            <thead>
+              <tr>
+                <th>Node</th>
+                <th>Status</th>
+                <th>Current</th>
+                <th>Desired</th>
+                <th>Monitor</th>
+                <th>Manage</th>
+                <th>Last heartbeat</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>\${rows}</tbody>
+          </table>
+        \`;
+        nodesEl.querySelectorAll("button[data-node]").forEach((button) => {
+          button.addEventListener("click", async () => {
+            const nodeId = button.getAttribute("data-node");
+            const enabled = button.getAttribute("data-enabled") === "true";
+            await toggleNode(nodeId, enabled);
+          });
+        });
+      }
+
+      async function toggleNode(nodeId, enabled) {
+        refreshBtn.disabled = true;
+        try {
+          await fetch(\`\${API_ENDPOINT}/\${nodeId}\`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ enabled })
+          });
+          await loadNodes();
+        } catch (error) {
+          statusEl.textContent = error instanceof Error ? error.message : String(error);
+        } finally {
+          refreshBtn.disabled = false;
+        }
+      }
+
+      function renderJobs(jobs) {
+        if (!jobs.length) {
+          jobsEl.innerHTML = "<p>No job history.</p>";
+          return;
+        }
+        const rows = jobs
+          .map((job) => \`
+            <tr>
+              <td>\${job.id}</td>
+              <td>\${job.moduleId}</td>
+              <td>\${job.status}</td>
+              <td>\${job.workerId || "-"}</td>
+              <td>\${job.finishedAt ? new Date(job.finishedAt).toLocaleString() : "-"}</td>
+            </tr>
+          \`)
+          .join("");
+        jobsEl.innerHTML = \`
+          <table>
+            <thead>
+              <tr>
+                <th>Job</th>
+                <th>Module</th>
+                <th>Status</th>
+                <th>Worker</th>
+                <th>Finished</th>
+              </tr>
+            </thead>
+            <tbody>\${rows}</tbody>
+          </table>
+        \`;
+      }
+
+      refreshBtn.addEventListener("click", (event) => {
+        event.preventDefault();
+        loadData();
+      });
+
+      loadData();
     </script>
   </body>
 </html>`;

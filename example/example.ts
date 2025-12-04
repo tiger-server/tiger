@@ -2,6 +2,7 @@ import { Tiger, http, cron, mail, example, zmq } from "../src/index.ts";
 
 async function main() {
   const tiger = new Tiger({
+    instanceId: process.env.TIGER_INSTANCE_ID ?? "tiger-9753",
     http: {
       port: Number(process.env.TIGER_HTTP_PORT ?? "9527"),
       host: process.env.TIGER_HTTP_HOST ?? "0.0.0.0"
@@ -10,13 +11,13 @@ async function main() {
       port: Number(process.env.TIGER_MONITOR_PORT ?? "9753"),
       host: process.env.TIGER_MONITOR_HOST ?? "0.0.0.0",
       basePath: process.env.TIGER_MONITOR_BASE_PATH ?? "/tiger/monitor",
-      disabled: process.env.TIGER_MONITOR_DISABLED === "1"
+      disabled: process.env.TIGER_MONITOR_DISABLED === "1",
+      dbPath: process.env.TIGER_MONITOR_DB ?? ".tiger-monitor"
     },
     cron: {
-      redisUrl: process.env.TIGER_CRON_REDIS_URL ?? "redis://127.0.0.1:6379",
-      scheduleKey: process.env.TIGER_CRON_SCHEDULE_KEY ?? "tiger:example:cron",
       pollIntervalMs: Number(process.env.TIGER_CRON_POLL_INTERVAL_MS ?? "1000"),
-      requeueDelayMs: Number(process.env.TIGER_CRON_REQUEUE_DELAY_MS ?? "5000")
+      requeueDelayMs: Number(process.env.TIGER_CRON_REQUEUE_DELAY_MS ?? "5000"),
+      levelDbPath: process.env.TIGER_CRON_LEVEL_PATH ?? ".tiger-cron"
     },
     zmq: {
       bindEndpoint: process.env.TIGER_ZMQ_BIND ?? "tcp://0.0.0.0:9528",
@@ -36,7 +37,9 @@ async function main() {
       channel: "mail:someone@another.com"
     },
     distributed: {
-      redisUrl: "redis://127.0.0.1:6379",
+      driver: "postgres",
+      levelDbPath:
+        process.env.TIGER_DISTRIBUTED_LEVEL_PATH ?? ".tiger-distributed",
     }
   });
 

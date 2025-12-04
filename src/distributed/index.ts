@@ -1,16 +1,26 @@
 import type { Logger } from "../logger.ts";
 import type { ResolvedDistributedConfig } from "../config.ts";
-import { DistributedCoordinator } from "./controller.ts";
+import { DistributedCoordinator, type NodeMetadata } from "./controller.ts";
+import type { PersistenceProvider } from "../persistence/index.ts";
 
 let coordinator: DistributedCoordinator | undefined;
 
 export function initDistributedCoordinator(
   config: ResolvedDistributedConfig,
   instanceId: string,
-  logger: Logger
+  logger: Logger,
+  provider: PersistenceProvider,
+  metadata?: NodeMetadata
 ): DistributedCoordinator {
   if (!coordinator) {
-    coordinator = new DistributedCoordinator(config, instanceId, logger);
+    coordinator = new DistributedCoordinator(
+      config,
+      instanceId,
+      logger,
+      provider,
+      metadata
+    );
+    void coordinator.start();
   }
   return coordinator;
 }
@@ -28,4 +38,8 @@ export function ensureDistributedCoordinator(): DistributedCoordinator {
     );
   }
   return coordinator;
+}
+
+export function getDistributedHeartbeatTimeout(): number | undefined {
+  return coordinator?.getHeartbeatTimeout();
 }

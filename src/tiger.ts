@@ -1,13 +1,16 @@
 
+import path from "node:path";
+
 import { nanoid } from "nanoid";
 
 import type { Resolver } from "./resolver.ts";
 import type { TigerConfig, Module, Target } from "./types.ts";
 import { getLogger, type Logger } from "./logger.ts";
-import monitor, { configureMonitorServer } from "./monitor.ts";
+import monitor, { configureMonitorServer, MANAGEMENT_BASE_PATH, configureManagementProvider } from "./monitor.ts";
 import {
   resolveDistributedConfig,
   resolveMonitorConfig,
+  resolveInstanceId,
 } from "./config.ts";
 import { DISTRIBUTED_STATE_SYMBOL } from "./core/common.ts";
 import {
@@ -15,6 +18,8 @@ import {
   getDistributedCoordinator,
 } from "./distributed/index.ts";
 import type { DistributedCoordinator } from "./distributed/controller.ts";
+import { createPersistenceProvider } from "./persistence/provider.ts";
+import type { PersistenceProvider } from "./persistence/index.ts";
 
 export type { TigerConfig, Module, Target } from "./types.ts";
 
@@ -43,6 +48,10 @@ export class Tiger {
   private _logger: Logger;
   private _instanceId: string;
   private _distributed?: DistributedCoordinator;
+  private _distributedConfig?: ReturnType<typeof resolveDistributedConfig>;
+  private _monitorConfig: ReturnType<typeof resolveMonitorConfig>;
+  private _targetModules: Record<string, ExtendedModule<any, any>[]> = {};
+  private _persistence: PersistenceProvider;
 
   private _postInitializeProcesses: Array<TigerCall>;
 
@@ -55,8 +64,36 @@ export class Tiger {
 
     this._logger = getLogger("tiger");
     this._postInitializeProcesses = [];
-    this._instanceId = nanoid();
-    configureMonitorServer(resolveMonitorConfig(this.config));
+    this._instanceId = resolveInstanceId(this.config);
+    this._monitorConfig = resolveMonitorConfig(this.config);
+    configureMonitorServer(this._monitorConfig);
+
+    this._distributedConfig = resolveDistributedConfig(this.config);
+    const persistenceDriver =
+      this._distributedConfig?.driver ??
+      this.config.distributed?.driver ??
+      "level";
+    const levelPath =
+      this._distributedConfig?.levelDbPath ??
+      path.resolve(
+        this.config.distributed?.levelDbPath ??
+          process.env.TIGER_DISTRIBUTED_LEVEL_PATH ??
+          ".tiger-level"
+      );
+    this._persistence = createPersistenceProvider({
+      driver: persistenceDriver,
+      levelPath,
+    });
+    this._postInitializeProcesses.push(async () => {
+      await this._persistence.start();
+    });
+    configureManagementProvider(this._persistence);
+
+    if (this._distributedConfig) {
+      this._postInitializeProcesses.push(async () => {
+        this._ensureDistributed();
+      });
+    }
   }
 
   async use(plugin: TigerPlugin): Promise<Tiger> {
@@ -80,6 +117,7 @@ export class Tiger {
     const extended = Object.assign(_module, this._handlerAdapter(_module));
 
     this._modules[_module.id] = extended;
+    (this._targetModules[extended.target] ??= []).push(extended);
     await monitor.registerModule(extended);
     if (extended.distributed) {
       this._ensureDistributed().registerModule(extended);
@@ -103,9 +141,16 @@ export class Tiger {
     const { protocol, path } = makeTargetFromString(target);
     const resolver = this._resolvers[protocol]
 
+    if (await this._enqueueDistributed(target, param)) {
+      return;
+    }
+
     if (resolver && resolver.notified) {
-      await resolver.notified(path, param, async (path, param) => {
-        await this._notify(target, path, param);
+      await resolver.notified(path, param, async (nextTarget, nextParam) => {
+        const handled = await this._enqueueDistributed(nextTarget, nextParam);
+        if (!handled) {
+          await this._notify(target, nextTarget, nextParam);
+        }
       })
     } else {
       this._warn(`No valid notification handler found for protocol [${protocol}]`)
@@ -142,20 +187,53 @@ export class Tiger {
 
   private _ensureDistributed(): DistributedCoordinator {
     if (!this._distributed) {
-      const config = resolveDistributedConfig(this.config);
+      const config =
+        this._distributedConfig ?? resolveDistributedConfig(this.config);
       if (!config) {
         throw new Error(
-          "Distributed modules require a distributed.redisUrl configuration"
+          "Distributed modules require a configured distributed section"
         );
       }
+      this._distributedConfig = config;
       const logger = getLogger("distributed");
+      const monitorUrl = this._monitorConfig.disabled
+        ? undefined
+        : `http://${this._monitorConfig.host}:${this._monitorConfig.port}${this._monitorConfig.basePath}`;
+      const managementUrl = this._monitorConfig.disabled
+        ? undefined
+        : `http://${this._monitorConfig.host}:${this._monitorConfig.port}${MANAGEMENT_BASE_PATH}`;
       this._distributed = initDistributedCoordinator(
         config,
         this._instanceId,
-        logger
+        logger,
+        this._persistence,
+        { monitorUrl, managementUrl }
       );
     }
     return this._distributed;
+  }
+
+  private async _enqueueDistributed(
+    target: string,
+    param: any
+  ): Promise<boolean> {
+    const modules = this._targetModules[target];
+    if (!modules) {
+      return false;
+    }
+    const distributedModules = modules.filter((mod) => mod.distributed);
+    if (!distributedModules.length) {
+      return false;
+    }
+    const coordinator = this._ensureDistributed();
+    await Promise.all(
+      distributedModules.map((mod) => coordinator.enqueue(mod, param))
+    );
+    return true;
+  }
+
+  get persistence(): PersistenceProvider {
+    return this._persistence;
   }
 
   _handlerAdapter<Param, State>(handler: Module<Param, State>) {

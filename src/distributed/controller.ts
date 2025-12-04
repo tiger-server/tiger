@@ -1,53 +1,47 @@
-import { randomUUID } from "node:crypto";
-import { Redis } from "ioredis";
-
 import type { ExtendedModule } from "../tiger.ts";
 import type { Logger } from "../logger.ts";
 import type { ResolvedDistributedConfig } from "../config.ts";
+import type { PersistenceProvider } from "../persistence/index.ts";
 import { processWithMutableState } from "../core/common.ts";
 
-interface QueueJob {
-  id: string;
-  payload: unknown;
-  createdAt: number;
-}
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-interface InflightEntry {
-  job: QueueJob;
-  assignedAt: number;
-  workerId: string;
-}
-
-type Worker = {
+interface Worker {
   running: boolean;
-};
+}
+
+export interface NodeMetadata {
+  monitorUrl?: string;
+  managementUrl?: string;
+}
 
 export class DistributedCoordinator {
-  private readonly redis: Redis;
   private readonly workers: Map<string, Worker> = new Map();
   private heartbeatTimer?: NodeJS.Timeout;
   private recoveryTimer?: NodeJS.Timeout;
+  private nodeEnabled = true;
   private readonly config: ResolvedDistributedConfig;
   private readonly instanceId: string;
   private readonly logger: Logger;
+  private readonly provider: PersistenceProvider;
+  private readonly metadata?: NodeMetadata;
 
   constructor(
     config: ResolvedDistributedConfig,
     instanceId: string,
-    logger: Logger
+    logger: Logger,
+    provider: PersistenceProvider,
+    metadata?: NodeMetadata
   ) {
     this.config = config;
     this.instanceId = instanceId;
     this.logger = logger;
-    this.redis = new Redis(config.redisUrl);
-    this.redis.on("error", (error) => {
-      this.logger.error(
-        `distributed redis error: ${
-          error instanceof Error ? error.message : String(error)
-        }`
-      );
-    });
-    void this.sendHeartbeat();
+    this.provider = provider;
+    this.metadata = metadata;
+  }
+
+  async start() {
+    await this.sendHeartbeat();
     this.startHeartbeat();
     this.startRecoveryLoop();
   }
@@ -56,12 +50,31 @@ export class DistributedCoordinator {
     if (!module.id) {
       throw new Error("Distributed module requires an id");
     }
-    const job: QueueJob = {
-      id: randomUUID(),
+    const accepted = await this.provider.enqueueJob(
+      module.id,
       payload,
-      createdAt: Date.now(),
-    };
-    await this.redis.rpush(this.queueKey(module.id), JSON.stringify(job));
+      undefined,
+      this.config.maxQueueLength
+    );
+    if (!accepted) {
+      this.logger.warn(
+        `dropping job for ${module.id}: queue reached ${this.config.maxQueueLength}`
+      );
+    }
+  }
+
+  async enqueueCron(moduleId: string, payload: unknown, scheduledAt: Date) {
+    const accepted = await this.provider.enqueueJob(
+      moduleId,
+      payload,
+      scheduledAt,
+      this.config.maxQueueLength
+    );
+    if (!accepted) {
+      this.logger.warn(
+        `dropping cron job for ${moduleId}: queue reached ${this.config.maxQueueLength}`
+      );
+    }
   }
 
   registerModule(module: ExtendedModule<any, any>) {
@@ -73,36 +86,50 @@ export class DistributedCoordinator {
     }
     const worker: Worker = { running: true };
     this.workers.set(module.id, worker);
-    this.startWorker(module, worker);
+    this.startWorker(module, worker).catch((error) => {
+      this.logger.error(`worker for ${module.id} failed: ${error}`);
+    });
   }
 
-  async loadState(moduleId: string): Promise<object> {
-    const raw = await this.redis.get(this.stateKey(moduleId));
-    if (!raw) {
-      return {};
-    }
-    try {
-      return JSON.parse(raw);
-    } catch {
-      return {};
-    }
+  async loadState(moduleId: string) {
+    return this.provider.loadModuleState(moduleId);
   }
 
   async saveState(moduleId: string, state: object) {
-    await this.redis.set(this.stateKey(moduleId), JSON.stringify(state ?? {}));
+    await this.provider.saveModuleState(moduleId, state);
   }
 
-  private queueKey(moduleId: string) {
-    return `${this.config.namespace}:queue:${moduleId}`;
+  async listNodes() {
+    return this.provider.listNodes();
   }
-  private inflightKey(moduleId: string) {
-    return `${this.config.namespace}:inflight:${moduleId}`;
+
+  async setNodeDesiredState(nodeId: string, enabled: boolean) {
+    await this.provider.setNodeDesiredState(nodeId, enabled);
   }
-  private stateKey(moduleId: string) {
-    return `${this.config.namespace}:state:${moduleId}`;
-  }
-  private nodeKey(nodeId: string) {
-    return `${this.config.namespace}:nodes:${nodeId}`;
+
+  private async startWorker(module: ExtendedModule<any, any>, worker: Worker) {
+    while (worker.running) {
+      if (!this.nodeEnabled) {
+        await sleep(200);
+        continue;
+      }
+      const job = await this.provider.claimJob(module.id!, this.instanceId);
+      if (!job) {
+        await sleep(200);
+        continue;
+      }
+      try {
+        await processWithMutableState(module, job.payload);
+        await this.provider.ackJob(job, this.instanceId);
+      } catch (error) {
+        this.logger.error(`distributed job ${job.id} failed: ${error}`);
+        await this.provider.failJob(
+          job,
+          this.instanceId,
+          error instanceof Error ? error.message : String(error)
+        );
+      }
+    }
   }
 
   private startHeartbeat() {
@@ -112,96 +139,33 @@ export class DistributedCoordinator {
   }
 
   private async sendHeartbeat() {
-    await this.redis.set(
-      this.nodeKey(this.instanceId),
-      Date.now().toString(),
-      "PX",
-      this.config.heartbeatTimeoutMs * 2
+    const metadata: Record<string, string> = {
+      monitorUrl: this.metadata?.monitorUrl || "",
+      managementUrl: this.metadata?.managementUrl || "",
+    };
+    const desired = await this.provider.heartbeat(
+      this.instanceId,
+      metadata,
+      this.nodeEnabled
     );
+    if (desired !== this.nodeEnabled) {
+      this.nodeEnabled = desired;
+      this.logger.info(
+        `node ${this.instanceId} ${desired ? "resuming" : "pausing"} work consumption`
+      );
+    }
   }
 
   private startRecoveryLoop() {
     this.recoveryTimer = setInterval(() => {
-      void this.recoverStaleJobs();
+      void this.provider.requeueStaleJobs(
+        this.instanceId,
+        this.config.heartbeatTimeoutMs
+      );
     }, this.config.heartbeatTimeoutMs);
   }
 
-  private async recoverStaleJobs() {
-    const now = Date.now();
-    for (const moduleId of this.workers.keys()) {
-      const inflightKey = this.inflightKey(moduleId);
-      const entries = await this.redis.hgetall(inflightKey);
-      for (const [jobId, raw] of Object.entries(entries)) {
-        let entry: InflightEntry;
-        try {
-          entry = JSON.parse(raw);
-        } catch {
-          await this.redis.hdel(inflightKey, jobId);
-          continue;
-        }
-        const heartbeat = await this.redis.exists(
-          this.nodeKey(entry.workerId)
-        );
-        if (
-          !heartbeat ||
-          now - entry.assignedAt > this.config.heartbeatTimeoutMs
-        ) {
-          this.logger.warn(
-            `requeue job ${jobId} for module ${moduleId} due to stale worker`
-          );
-          await this.redis.lpush(
-            this.queueKey(moduleId),
-            JSON.stringify(entry.job)
-          );
-          await this.redis.hdel(inflightKey, jobId);
-        }
-      }
-    }
-  }
-
-  private startWorker(module: ExtendedModule<any, any>, worker: Worker) {
-    const queueKey = this.queueKey(module.id!);
-    const inflightKey = this.inflightKey(module.id!);
-    const loop = async () => {
-      while (worker.running) {
-        const result = await this.redis.brpop(queueKey, 5);
-        if (!result) {
-          continue;
-        }
-        const [, rawJob] = result;
-        let job: QueueJob;
-        try {
-          job = JSON.parse(rawJob);
-        } catch (error) {
-          this.logger.error(
-            `invalid job payload for module ${module.id}: ${rawJob}`
-          );
-          continue;
-        }
-        const inflightEntry: InflightEntry = {
-          job,
-          assignedAt: Date.now(),
-          workerId: this.instanceId,
-        };
-        await this.redis.hset(
-          inflightKey,
-          job.id,
-          JSON.stringify(inflightEntry)
-        );
-        try {
-          await processWithMutableState(module, job.payload);
-          await this.redis.hdel(inflightKey, job.id);
-        } catch (error) {
-          this.logger.error(
-            `distributed module ${module.id} failed: ${
-              error instanceof Error ? error.stack ?? error.message : String(error)
-            }`
-          );
-          await this.redis.hdel(inflightKey, job.id);
-          await this.redis.lpush(queueKey, JSON.stringify(job));
-        }
-      }
-    };
-    void loop();
+  getHeartbeatTimeout(): number {
+    return this.config.heartbeatTimeoutMs;
   }
 }

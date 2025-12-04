@@ -11,15 +11,13 @@ Tiger bundled with few standard plugins:
 
 ### `cron`
 
-The `cron` plugin now schedules work through Redis, so every Tiger instance connected to the same Redis sorted set will race to claim the next due job. When a module is triggered its next run is immediately enqueued again, which keeps scheduling accurate even across process restarts. Make sure a Redis server is reachable before calling `tiger.use(cron)`.
+The `cron` plugin keeps its schedule in a persistent store. In single-node mode it writes to a LevelDB database on disk (default `.tiger-cron`), and when the distributed driver is set to `postgres` it stores the schedule inside Postgres so every instance cooperates automatically. Each time a job fires the next run is computed and persisted immediately, which keeps the cadence stable through restarts.
 
 You can configure the scheduler either via the Tiger config or environment variables:
 
 ```ts
 const tiger = new Tiger({
   cron: {
-    redisUrl: "redis://127.0.0.1:6379",
-    scheduleKey: "tiger:cron:schedule",
     pollIntervalMs: 1000,
     requeueDelayMs: 5000,
     levelDbPath: ".tiger-cron"
@@ -27,9 +25,7 @@ const tiger = new Tiger({
 });
 ```
 
-Environment fallbacks are `TIGER_CRON_REDIS_URL`, `TIGER_CRON_SCHEDULE_KEY`, `TIGER_CRON_POLL_INTERVAL_MS`, `TIGER_CRON_REQUEUE_DELAY_MS`, and `TIGER_CRON_LEVEL_PATH`.
-
-If `redisUrl` isn’t provided the scheduler degrades gracefully into a single-node mode using a LevelDB queue at `levelDbPath`.
+Environment fallbacks are `TIGER_CRON_POLL_INTERVAL_MS`, `TIGER_CRON_REQUEUE_DELAY_MS`, and `TIGER_CRON_LEVEL_PATH`.
 
 It only takes effect when you define a module on the `cron:` protocol. It doesn't provide any messages but mutates the module state when a schedule fires.
 
@@ -182,11 +178,16 @@ await this.notify("mail:someone@another.com", {
 
 ### Distributed modules
 
-Set `distributed: true` and a stable `id` on any module to turn it into a distributed worker. Configure `distributed.redisUrl` (or `TIGER_DISTRIBUTED_REDIS_URL`) so Tiger instances can coordinate through Redis. Each node:
+Set `distributed: true` and a stable `id` on any module to turn it into a distributed worker. Configure the top-level `distributed` block and pick a driver:
 
-- pushes new work into the module’s Redis queue instead of executing immediately,
-- pulls jobs from that queue and updates the shared module state stored in Redis,
-- heartbeats into a registry so stalled jobs are reassigned if a node goes offline for more than 10 s.
+- `driver: "postgres"` (plus `DATABASE_URL`) enables the full multi-node queue/state registry backed by Postgres + Sequelize.
+- `driver: "level"` keeps everything local on disk, which is useful when developing on one machine.
+
+Each node:
+
+- pushes new work into the distributed queue instead of executing immediately,
+- pulls jobs from that queue and updates the shared module state stored via the persistence provider,
+- heartbeats into the registry so stalled jobs are reassigned if a node goes offline for more than 10 s.
 
 ```ts
 await tiger.define({
@@ -199,6 +200,10 @@ await tiger.define({
     return { count };
   }
 });
+
+Once distributed mode is enabled, open `/tiger/manage` on the same host/port as the monitor to see every node’s heartbeat timestamp, enable/disable consumption, and call the management API (`/tiger/manage/api/nodes`) if you need to script toggles.
+
+You can cap the backlog with `distributed.maxQueueLength` (env: `TIGER_DISTRIBUTED_MAX_QUEUE`, default `100`). When a module’s queue reaches that size, new jobs for that module are dropped rather than piling up indefinitely.
 ```
 
 ## Self-defined Plugins

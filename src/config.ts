@@ -1,4 +1,5 @@
 import path from "node:path";
+import { nanoid } from "nanoid";
 
 import type { TigerConfig } from "./types.ts";
 
@@ -11,7 +12,7 @@ const DEFAULT_MONITOR_DB = ".tiger-monitor";
 const DEFAULT_ZMQ_BIND = "tcp://0.0.0.0:9528";
 const DEFAULT_ZMQ_CONNECT = "tcp://127.0.0.1:9528";
 const DEFAULT_CRON_LEVEL_DB = ".tiger-cron";
-const DEFAULT_DISTRIBUTED_NAMESPACE = "tiger:distributed";
+const DEFAULT_DISTRIBUTED_LEVEL_DB = ".tiger-distributed";
 const DEFAULT_HEARTBEAT_INTERVAL = 3000;
 const DEFAULT_HEARTBEAT_TIMEOUT = 10000;
 
@@ -54,8 +55,6 @@ export interface ResolvedMonitorConfig {
 }
 
 export interface ResolvedCronConfig {
-  redisUrl?: string;
-  scheduleKey: string;
   pollIntervalMs: number;
   requeueDelayMs: number;
   levelDbPath: string;
@@ -67,10 +66,11 @@ export interface ResolvedZmqConfig {
 }
 
 export interface ResolvedDistributedConfig {
-  redisUrl: string;
-  namespace: string;
+  driver: "level" | "postgres";
   heartbeatIntervalMs: number;
   heartbeatTimeoutMs: number;
+  maxQueueLength: number;
+  levelDbPath: string;
 }
 
 export function resolveHttpConfig(config?: TigerConfig): ResolvedHttpConfig {
@@ -104,12 +104,6 @@ export function resolveMonitorConfig(
 
 export function resolveCronConfig(config?: TigerConfig): ResolvedCronConfig {
   const cron = config?.cron ?? {};
-  const redisUrl =
-    cron.redisUrl ?? process.env.TIGER_CRON_REDIS_URL ?? undefined;
-  const scheduleKey =
-    cron.scheduleKey ??
-    process.env.TIGER_CRON_SCHEDULE_KEY ??
-    "tiger:cron:schedule";
   const pollIntervalMs =
     cron.pollIntervalMs ??
     parseNumber(process.env.TIGER_CRON_POLL_INTERVAL_MS, 1000);
@@ -119,7 +113,7 @@ export function resolveCronConfig(config?: TigerConfig): ResolvedCronConfig {
   const levelDbPath = path.resolve(
     cron.levelDbPath ?? process.env.TIGER_CRON_LEVEL_PATH ?? DEFAULT_CRON_LEVEL_DB
   );
-  return { redisUrl, scheduleKey, pollIntervalMs, requeueDelayMs, levelDbPath };
+  return { pollIntervalMs, requeueDelayMs, levelDbPath };
 }
 
 export function resolveZmqConfig(config?: TigerConfig): ResolvedZmqConfig {
@@ -137,15 +131,15 @@ export function resolveDistributedConfig(
   config?: TigerConfig
 ): ResolvedDistributedConfig | undefined {
   const distributed = config?.distributed;
-  const redisUrl =
-    distributed?.redisUrl ?? process.env.TIGER_DISTRIBUTED_REDIS_URL;
-  if (!redisUrl) {
+  const envDriver = process.env.TIGER_DISTRIBUTED_DRIVER as
+    | "level"
+    | "postgres"
+    | undefined;
+  if (!distributed && !envDriver) {
     return undefined;
   }
-  const namespace =
-    distributed?.namespace ??
-    process.env.TIGER_DISTRIBUTED_NAMESPACE ??
-    DEFAULT_DISTRIBUTED_NAMESPACE;
+  const driver =
+    distributed?.driver ?? envDriver ?? "level";
   const heartbeatIntervalMs =
     distributed?.heartbeatIntervalMs ??
     parseNumber(
@@ -158,5 +152,23 @@ export function resolveDistributedConfig(
       process.env.TIGER_DISTRIBUTED_HEARTBEAT_TIMEOUT,
       DEFAULT_HEARTBEAT_TIMEOUT
     );
-  return { redisUrl, namespace, heartbeatIntervalMs, heartbeatTimeoutMs };
+  const maxQueueLength =
+    distributed?.maxQueueLength ??
+    parseNumber(process.env.TIGER_DISTRIBUTED_MAX_QUEUE, 100);
+  const levelDbPath = path.resolve(
+    distributed?.levelDbPath ??
+      process.env.TIGER_DISTRIBUTED_LEVEL_PATH ??
+      DEFAULT_DISTRIBUTED_LEVEL_DB
+  );
+  return {
+    driver,
+    heartbeatIntervalMs,
+    heartbeatTimeoutMs,
+    maxQueueLength,
+    levelDbPath,
+  };
+}
+
+export function resolveInstanceId(config?: TigerConfig): string {
+  return config?.instanceId ?? process.env.TIGER_INSTANCE_ID ?? nanoid();
 }

@@ -15,8 +15,6 @@ interface MailConfig {
 }
 
 interface CronConfig {
-  redisUrl?: string;
-  scheduleKey?: string;
   pollIntervalMs?: number;
   requeueDelayMs?: number;
   levelDbPath?: string;
@@ -41,13 +39,15 @@ interface ZmqConfig {
 }
 
 interface DistributedConfig {
-  redisUrl?: string;
-  namespace?: string;
+  driver?: "level" | "postgres";
+  levelDbPath?: string;
   heartbeatIntervalMs?: number;
   heartbeatTimeoutMs?: number;
+  maxQueueLength?: number;
 }
 
 export interface TigerConfig {
+  instanceId?: string;
   mail?: MailConfig;
   cron?: CronConfig;
   http?: HttpConfig;

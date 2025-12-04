@@ -3,14 +3,12 @@ import { CronExpressionParser } from "cron-parser";
 import type { TigerPlugin, Tiger, ExtendedModule } from "../tiger.ts";
 import { BaseResolver } from "../resolver.ts";
 import { getLogger, type Logger } from "../logger.ts";
-import {
-  resolveCronConfig,
-  type ResolvedCronConfig,
-} from "../config.ts";
+import { resolveCronConfig, type ResolvedCronConfig } from "../config.ts";
 import type { CronScheduleStore } from "./cron/scheduler.ts";
-import { createRedisScheduleStore } from "./cron/redis-store.ts";
 import { createLevelScheduleStore } from "./cron/level-store.ts";
+import { createPostgresScheduleStore } from "./cron/postgres-store.ts";
 import { dispatchModule } from "../runner.ts";
+import { getDistributedCoordinator } from "../distributed/index.ts";
 
 type CronModuleEntry = {
   readonly expression: string;
@@ -31,13 +29,13 @@ export default new (class implements TigerPlugin {
 
   async setup(tiger: Tiger): Promise<void> {
     this._config = resolveCronConfig(tiger.config);
-    this._store = this._createStore();
+    const driver = tiger.config.distributed?.driver ?? "level";
+    this._store = this._createStore(driver);
     this._startPolling();
 
+    const backend = driver === "postgres" ? "postgres" : "leveldb";
     this._logger.info(
-      `cron scheduler initialized using ${
-        this._config.redisUrl ? "redis" : "leveldb"
-      } backend`
+      `cron scheduler initialized using ${backend} backend`
     );
 
     const plugin = this;
@@ -51,13 +49,9 @@ export default new (class implements TigerPlugin {
     );
   }
 
-  private _createStore(): CronScheduleStore {
-    if (this._config.redisUrl) {
-      return createRedisScheduleStore({
-        redisUrl: this._config.redisUrl,
-        scheduleKey: this._config.scheduleKey,
-        logger: this._logger,
-      });
+  private _createStore(driver: "level" | "postgres"): CronScheduleStore {
+    if (driver === "postgres") {
+      return createPostgresScheduleStore();
     }
     return createLevelScheduleStore({
       dbPath: this._config.levelDbPath,
@@ -91,7 +85,11 @@ export default new (class implements TigerPlugin {
     if (!nextRun) {
       return;
     }
-    await this._store.scheduleIfNotExists(_module.id, nextRun.getTime());
+    await this._store.scheduleIfNotExists(
+      _module.id,
+      nextRun.getTime(),
+      expression
+    );
   }
 
   private async _scheduleNextRun(
@@ -180,6 +178,22 @@ export default new (class implements TigerPlugin {
       return;
     }
 
+    if (entry.module.distributed) {
+      const coordinator = getDistributedCoordinator();
+      if (!coordinator) {
+        this._logger.error(
+          `distributed cron module ${moduleId} has no coordinator; skipping`
+        );
+        return;
+      }
+      this._logger.info(
+        `queueing distributed cron job ${moduleId} scheduled for ${new Date(
+          scheduledFor
+        ).toISOString()}`
+      );
+      await coordinator.enqueueCron(moduleId, {}, new Date(scheduledFor));
+      return;
+    }
     this._logger.info(
       `invoking cron job ${moduleId} scheduled for ${new Date(
         scheduledFor

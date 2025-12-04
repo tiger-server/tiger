@@ -10,8 +10,10 @@ coverage/
 .tiger-monitor/
 .tiger-monitor/*
 
-.tiger-example-db*
+.tiger-*
 
 yarn.lock
 
 *.log
+
+/src/generated/prisma

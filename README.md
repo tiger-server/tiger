@@ -17,6 +17,7 @@ import { Tiger, http, cron, mail, zmq } from "tiger-server";
 
 async function main() {
   const tiger = new Tiger({
+    instanceId: process.env.TIGER_INSTANCE_ID,
     http: {
       port: Number(process.env.TIGER_HTTP_PORT ?? "9527"),
       host: process.env.TIGER_HTTP_HOST ?? "0.0.0.0"
@@ -28,12 +29,21 @@ async function main() {
       disabled: process.env.TIGER_MONITOR_DISABLED === "1"
     },
     cron: {
-      redisUrl: process.env.TIGER_CRON_REDIS_URL ?? "redis://127.0.0.1:6379",
-      scheduleKey: process.env.TIGER_CRON_SCHEDULE_KEY ?? "tiger:cron:schedule"
+      pollIntervalMs: Number(process.env.TIGER_CRON_POLL_INTERVAL_MS ?? "1000"),
+      requeueDelayMs: Number(process.env.TIGER_CRON_REQUEUE_DELAY_MS ?? "5000"),
+      levelDbPath: process.env.TIGER_CRON_LEVEL_PATH ?? ".tiger-cron"
     },
     zmq: {
       bindEndpoint: process.env.TIGER_ZMQ_BIND ?? "tcp://0.0.0.0:9528",
       connectEndpoint: process.env.TIGER_ZMQ_CONNECT ?? "tcp://127.0.0.1:9528"
+    },
+    distributed: process.env.TIGER_DISTRIBUTED_DRIVER
+      ? {
+          driver: process.env.TIGER_DISTRIBUTED_DRIVER as "level" | "postgres",
+          levelDbPath:
+            process.env.TIGER_DISTRIBUTED_LEVEL_PATH ?? ".tiger-distributed"
+        }
+      : undefined
     }
   });
 
@@ -89,8 +99,12 @@ This relies on Node’s native TypeScript loader, so there is no build step and 
 
 > The `zmq` plugin binds to `zmq.bindEndpoint` and connects with `zmq.connectEndpoint` (env fallbacks `TIGER_ZMQ_BIND`/`TIGER_ZMQ_CONNECT`), so you can run multiple instances without port conflicts.
 
-> The `cron` plugin coordinates schedules via Redis. Start a Redis server (or point `TIGER_CRON_REDIS_URL` at your cluster) before running Tiger if you use cron modules. Multiple Tiger instances can share the same Redis queue and will cooperatively claim jobs. If you omit `cron.redisUrl`, Tiger falls back to a local LevelDB queue stored at `TIGER_CRON_LEVEL_PATH` (defaults to `.tiger-cron`), which is ideal for single-node setups.
+> The `cron` plugin persists its schedule either in LevelDB (`cron.levelDbPath`, default `.tiger-cron`) or, when you run distributed mode with a Postgres driver, inside the shared Postgres database. Multiple Tiger processes simply read from the same store and pop due runs cooperatively.
 
-> To build *distributed modules*, configure `distributed.redisUrl` (or `TIGER_DISTRIBUTED_REDIS_URL`) and define the module with both `id` and `distributed: true`. All nodes that define the module automatically join a Redis-backed work queue, share their module state, and heartbeat into a registry so work can be reassigned if a node disappears.
+> To build *distributed modules*, configure the `distributed` block. Set `distributed.driver` to `postgres` (and point `DATABASE_URL` to your Postgres instance) to enable a shared job/state store, or leave it as `level` for single-node experimentation. Every distributed module must declare an `id` and `distributed: true`; Tiger will enqueue work, persist state, and heartbeat the node registry through the configured persistence provider. Use `distributed.maxQueueLength` (default `100`) to keep runaway producers from filling the queue indefinitely.
+
+> When running with the Postgres driver, apply the bundled Sequelize migrations (e.g. `DATABASE_URL=postgres://... npx sequelize-cli db:migrate`) before starting Tiger so the job, state, and registry tables exist.
+
+> When distributed mode is enabled, a management dashboard and API are available at `/tiger/manage` on the same port as the monitor. It lists every node’s last heartbeat, whether it is enabled/disabled, and lets you pause or resume queue consumption for any node while it continues to report heartbeats and finish in-flight work.
 
 > Logo is generated from [Wikipedia](https://en.wikipedia.org/wiki/File:Ghostscript_Tiger.svg), the original script is under GPL license.
