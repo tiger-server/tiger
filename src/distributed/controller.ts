@@ -1,13 +1,26 @@
+import { AsyncLocalStorage } from "node:async_hooks";
+
 import type { ExtendedModule } from "../tiger.ts";
 import type { Logger } from "../logger.ts";
 import type { ResolvedDistributedConfig } from "../config.ts";
-import type { PersistenceProvider } from "../persistence/index.ts";
-import { processWithMutableState } from "../core/common.ts";
+import type {
+  PersistenceProvider,
+  PendingJob,
+  QueueJob,
+} from "../persistence/index.ts";
+import {
+  processWithMutableState,
+  DISTRIBUTED_STATE_SYMBOL,
+} from "../core/common.ts";
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 interface Worker {
   running: boolean;
+}
+
+interface JobContext {
+  pending: PendingJob[];
 }
 
 export interface NodeMetadata {
@@ -25,7 +38,7 @@ export class DistributedCoordinator {
   private readonly logger: Logger;
   private readonly provider: PersistenceProvider;
   private readonly metadata?: NodeMetadata;
-
+  private readonly jobContext = new AsyncLocalStorage<JobContext>();
   constructor(
     config: ResolvedDistributedConfig,
     instanceId: string,
@@ -50,17 +63,16 @@ export class DistributedCoordinator {
     if (!module.id) {
       throw new Error("Distributed module requires an id");
     }
-    const accepted = await this.provider.enqueueJob(
-      module.id,
-      payload,
-      undefined,
-      this.config.maxQueueLength
-    );
-    if (!accepted) {
-      this.logger.warn(
-        `dropping job for ${module.id}: queue reached ${this.config.maxQueueLength}`
-      );
+    const context = this.jobContext.getStore();
+    if (context) {
+      context.pending.push({
+        moduleId: module.id,
+        payload,
+        maxQueueLength: this.config.maxQueueLength,
+      });
+      return;
     }
+    await this.enqueueImmediate(module.id, payload);
   }
 
   async enqueueCron(moduleId: string, payload: unknown, scheduledAt: Date) {
@@ -95,10 +107,6 @@ export class DistributedCoordinator {
     return this.provider.loadModuleState(moduleId);
   }
 
-  async saveState(moduleId: string, state: object) {
-    await this.provider.saveModuleState(moduleId, state);
-  }
-
   async listNodes() {
     return this.provider.listNodes();
   }
@@ -118,17 +126,7 @@ export class DistributedCoordinator {
         await sleep(200);
         continue;
       }
-      try {
-        await processWithMutableState(module, job.payload);
-        await this.provider.ackJob(job, this.instanceId);
-      } catch (error) {
-        this.logger.error(`distributed job ${job.id} failed: ${error}`);
-        await this.provider.failJob(
-          job,
-          this.instanceId,
-          error instanceof Error ? error.message : String(error)
-        );
-      }
+      await this.handleJob(module, job);
     }
   }
 
@@ -168,4 +166,65 @@ export class DistributedCoordinator {
   getHeartbeatTimeout(): number {
     return this.config.heartbeatTimeoutMs;
   }
+
+  private getModuleState(module: ExtendedModule<any, any>): object {
+    const state = (module as any)[DISTRIBUTED_STATE_SYMBOL];
+    return state && typeof state === "object" ? state : {};
+  }
+
+  private async enqueueImmediate(
+    moduleId: string,
+    payload: unknown,
+    scheduledAt?: Date
+  ) {
+    const accepted = await this.provider.enqueueJob(
+      moduleId,
+      payload,
+      scheduledAt,
+      this.config.maxQueueLength
+    );
+    if (!accepted) {
+      this.logger.warn(
+        `dropping job for ${moduleId}: queue reached ${this.config.maxQueueLength}`
+      );
+    }
+  }
+
+  private reportDroppedPending(modules: string[], reason: string) {
+    for (const moduleId of modules) {
+      this.logger.warn(`dropping pending job for ${moduleId} (${reason})`);
+    }
+  }
+
+  private async handleJob(
+    module: ExtendedModule<any, any>,
+    job: QueueJob
+  ): Promise<void> {
+    const context: JobContext = { pending: [] };
+    await this.jobContext.run(context, async () => {
+      try {
+        await processWithMutableState(module, job.payload);
+        const state = this.getModuleState(module);
+        const dropped = await this.provider.ackJob(
+          job,
+          this.instanceId,
+          state,
+          context.pending
+        );
+        this.reportDroppedPending(dropped, "queue full");
+      } catch (error) {
+        this.logger.error(`distributed job ${job.id} failed: ${error}`);
+        const state = this.getModuleState(module);
+        const dropped = await this.provider.failJob(
+          job,
+          this.instanceId,
+          state,
+          context.pending,
+          error instanceof Error ? error.message : String(error)
+        );
+        this.reportDroppedPending(dropped, "job failed");
+      }
+    });
+  }
+
 }

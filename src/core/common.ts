@@ -27,6 +27,7 @@ export async function processWithMutableState<Param, State>(
       ? await (async () => {
           const loaded = await distributed!.loadState(_module.id!);
           (_module as any)[DISTRIBUTED_STATE_SYMBOL] = loaded;
+          _module.state(loaded as State);
           return loaded;
         })()
       : ((_module.state() as any as object) ?? {});
@@ -37,23 +38,20 @@ export async function processWithMutableState<Param, State>(
       logger.info(
         `Patch state of ${_module.id} with ${JSON.stringify(result)}`
       );
-      if (isDistributed) {
-        Object.assign(runtimeState, result as object);
-      } else {
-        _module.state({ ...runtimeState, ...result });
-      }
+      Object.assign(runtimeState, result as object);
+      _module.state(runtimeState as State);
     }
   } catch (error) {
     errorMessage = error instanceof Error ? error.message : String(error);
     throw error;
   } finally {
-    let latestState: object;
-    if (isDistributed && _module.id) {
-      await distributed!.saveState(_module.id!, runtimeState);
-      latestState = runtimeState;
-    } else {
-      latestState = (_module.state() as any as object) ?? {};
+    if (isDistributed) {
+      _module.state(runtimeState as State);
     }
+    const latestState =
+      (isDistributed && _module.id
+        ? runtimeState
+        : ((_module.state() as any as object) ?? {}));
     await monitor.recordRun(
       _module,
       param,

@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { Level } from "level";
 
-import type { PersistenceProvider, QueueJob } from "./index.ts";
+import type { PersistenceProvider, QueueJob, PendingJob } from "./index.ts";
 
 type NodeRecord = {
   id: string;
@@ -103,16 +103,12 @@ export class LevelPersistenceProvider implements PersistenceProvider {
     return (await this.stateDb.get(moduleId).catch(() => ({}))) ?? {};
   }
 
-  async saveModuleState(moduleId: string, state: object): Promise<void> {
-    await this.stateDb.put(moduleId, state);
-  }
-
   async enqueueJob(
     moduleId: string,
     payload: unknown,
     scheduledAt: Date = new Date(),
     maxQueueLength?: number
-  ): Promise<boolean> {
+  ): Promise<string | undefined> {
     if (typeof maxQueueLength === "number") {
       let count = 0;
       for await (const _ of this.queueDb.iterator({
@@ -121,7 +117,7 @@ export class LevelPersistenceProvider implements PersistenceProvider {
       })) {
         count += 1;
         if (count >= maxQueueLength) {
-          return false;
+          return undefined;
         }
       }
     }
@@ -132,7 +128,7 @@ export class LevelPersistenceProvider implements PersistenceProvider {
       payload,
       scheduledAt: scheduledAt.getTime(),
     });
-    return true;
+    return id;
   }
 
   async claimJob(
@@ -154,7 +150,13 @@ export class LevelPersistenceProvider implements PersistenceProvider {
     return undefined;
   }
 
-  async ackJob(job: QueueJob, workerId: string): Promise<void> {
+  async ackJob(
+    job: QueueJob,
+    workerId: string,
+    state: object,
+    pendingJobs: PendingJob[]
+  ): Promise<string[]> {
+    await this.stateDb.put(job.moduleId, state);
     await this.historyDb.put(this.makeHistoryKey(job), {
       id: job.id,
       moduleId: job.moduleId,
@@ -163,9 +165,17 @@ export class LevelPersistenceProvider implements PersistenceProvider {
       workerId,
       finishedAt: Date.now(),
     });
+    return this.flushPendingJobs(pendingJobs);
   }
 
-  async failJob(job: QueueJob, workerId: string, reason?: string): Promise<void> {
+  async failJob(
+    job: QueueJob,
+    workerId: string,
+    state: object,
+    pendingJobs: PendingJob[],
+    reason?: string
+  ): Promise<string[]> {
+    await this.stateDb.put(job.moduleId, state);
     await this.historyDb.put(this.makeHistoryKey(job), {
       id: job.id,
       moduleId: job.moduleId,
@@ -175,6 +185,7 @@ export class LevelPersistenceProvider implements PersistenceProvider {
       finishedAt: Date.now(),
       error: reason,
     });
+    return pendingJobs.map((job) => job.moduleId);
   }
 
   async requeueStaleJobs(_workerId: string, _timeoutMs: number): Promise<void> {}
@@ -192,5 +203,21 @@ export class LevelPersistenceProvider implements PersistenceProvider {
 
   private makeHistoryKey(job: QueueJob): string {
     return `${String(Date.now()).padStart(20, "0")}!${job.moduleId}!${job.id}`;
+  }
+
+  private async flushPendingJobs(pendingJobs: PendingJob[]): Promise<string[]> {
+    const dropped: string[] = [];
+    for (const pending of pendingJobs) {
+      const accepted = await this.enqueueJob(
+        pending.moduleId,
+        pending.payload,
+        pending.scheduledAt ?? new Date(),
+        pending.maxQueueLength
+      );
+      if (!accepted) {
+        dropped.push(pending.moduleId);
+      }
+    }
+    return dropped;
   }
 }

@@ -5,6 +5,13 @@ export interface QueueJob {
   scheduledAt: Date;
 }
 
+export interface PendingJob {
+  moduleId: string;
+  payload: unknown;
+  scheduledAt?: Date;
+  maxQueueLength?: number;
+}
+
 export interface PersistenceProvider {
   start(): Promise<void>;
   stop(): Promise<void>;
@@ -28,7 +35,6 @@ export interface PersistenceProvider {
 
   // module state
   loadModuleState(moduleId: string): Promise<object>;
-  saveModuleState(moduleId: string, state: object): Promise<void>;
 
   // job queue
   enqueueJob(
@@ -36,10 +42,21 @@ export interface PersistenceProvider {
     payload: unknown,
     scheduledAt?: Date,
     maxQueueLength?: number
-  ): Promise<boolean>;
+  ): Promise<string | undefined>;
   claimJob(moduleId: string, workerId: string): Promise<QueueJob | undefined>;
-  ackJob(job: QueueJob, workerId: string): Promise<void>;
-  failJob(job: QueueJob, workerId: string, reason?: string): Promise<void>;
+  ackJob(
+    job: QueueJob,
+    workerId: string,
+    state: object,
+    pendingJobs: PendingJob[]
+  ): Promise<string[]>;
+  failJob(
+    job: QueueJob,
+    workerId: string,
+    state: object,
+    pendingJobs: PendingJob[],
+    reason?: string
+  ): Promise<string[]>;
   requeueStaleJobs(workerId: string, timeoutMs: number): Promise<void>;
   listJobHistory(limit: number): Promise<
     Array<{

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { Op, Transaction, UniqueConstraintError } from "sequelize";
 
-import type { PersistenceProvider, QueueJob } from "./index.ts";
+import type { PersistenceProvider, QueueJob, PendingJob } from "./index.ts";
 import {
   DistributedJobModel,
   DistributedModuleStateModel,
@@ -69,34 +69,13 @@ export class PostgresPersistenceProvider implements PersistenceProvider {
     return record ? (record.get("state") as object) : {};
   }
 
-  async saveModuleState(moduleId: string, state: object): Promise<void> {
-    await DistributedModuleStateModel.upsert({ moduleId, state });
-  }
-
   async enqueueJob(
     moduleId: string,
     payload: unknown,
     scheduledAt: Date = new Date(),
     maxQueueLength?: number
-  ): Promise<boolean> {
-    if (typeof maxQueueLength === "number") {
-      return sequelize.transaction(
-        { isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED },
-        async (transaction) => {
-          const queued = await DistributedJobModel.count({
-            where: { moduleId, status: "queued" },
-            transaction,
-          });
-          if (queued >= maxQueueLength) {
-            return false;
-          }
-          await this.insertJob(moduleId, payload, scheduledAt, transaction);
-          return true;
-        }
-      );
-    }
-    await this.insertJob(moduleId, payload, scheduledAt);
-    return true;
+  ): Promise<string | undefined> {
+    return this.enqueueWithLimit(moduleId, payload, scheduledAt, maxQueueLength);
   }
 
   async claimJob(moduleId: string, workerId: string): Promise<QueueJob | undefined> {
@@ -141,49 +120,131 @@ export class PostgresPersistenceProvider implements PersistenceProvider {
     );
   }
 
-  async ackJob(job: QueueJob, workerId: string): Promise<void> {
-    const record = await DistributedJobModel.findByPk(job.id);
-    if (!record) {
-      return;
-    }
-    await DistributedJobHistoryModel.create({
-      jobId: record.id,
-      moduleId: record.moduleId,
-      payload: record.payload,
-      status: "completed",
-      workerId,
-      startedAt: record.lockedAt,
-      finishedAt: new Date(),
+  async ackJob(
+    job: QueueJob,
+    workerId: string,
+    state: object,
+    pendingJobs: PendingJob[]
+  ): Promise<string[]> {
+    return sequelize.transaction(async (transaction) => {
+      await DistributedModuleStateModel.upsert(
+        { moduleId: job.moduleId, state },
+        { transaction }
+      );
+      const record = await DistributedJobModel.findByPk(job.id, {
+        lock: transaction.LOCK.UPDATE,
+        transaction,
+      });
+      if (!record) {
+        return [];
+      }
+      await DistributedJobHistoryModel.create(
+        {
+          jobId: record.id,
+          moduleId: record.moduleId,
+          payload: record.payload,
+          status: "completed",
+          workerId,
+          startedAt: record.lockedAt,
+          finishedAt: new Date(),
+        },
+        { transaction }
+      );
+      await record.destroy({ transaction });
+      return this.flushPendingJobs(pendingJobs, transaction);
     });
-    await record.destroy();
   }
 
-  async failJob(job: QueueJob, workerId: string, reason?: string): Promise<void> {
-    const record = await DistributedJobModel.findByPk(job.id);
-    if (!record) {
-      return;
-    }
-    await DistributedJobHistoryModel.create({
-      jobId: record.id,
-      moduleId: record.moduleId,
-      payload: record.payload,
-      status: "failed",
-      workerId,
-      startedAt: record.lockedAt,
-      finishedAt: new Date(),
-      error: reason,
+  async failJob(
+    job: QueueJob,
+    workerId: string,
+    state: object,
+    pendingJobs: PendingJob[],
+    reason?: string
+  ): Promise<string[]> {
+    await sequelize.transaction(async (transaction) => {
+      await DistributedModuleStateModel.upsert(
+        { moduleId: job.moduleId, state },
+        { transaction }
+      );
+      const record = await DistributedJobModel.findByPk(job.id, {
+        lock: transaction.LOCK.UPDATE,
+        transaction,
+      });
+      if (!record) {
+        return;
+      }
+      await DistributedJobHistoryModel.create(
+        {
+          jobId: record.id,
+          moduleId: record.moduleId,
+          payload: record.payload,
+          status: "failed",
+          workerId,
+          startedAt: record.lockedAt,
+          finishedAt: new Date(),
+          error: reason,
+        },
+        { transaction }
+      );
+      await record.destroy({ transaction });
     });
-    await record.destroy();
+    return pendingJobs.map((job) => job.moduleId);
   }
 
-  private async insertJob(
+  private async enqueueWithLimit(
+    moduleId: string,
+    payload: unknown,
+    scheduledAt: Date,
+    maxQueueLength?: number,
+    transaction?: Transaction
+  ): Promise<string | undefined> {
+    if (typeof maxQueueLength === "number") {
+      const queued = await DistributedJobModel.count({
+        where: { moduleId, status: "queued" },
+        transaction,
+      });
+      if (queued >= maxQueueLength) {
+        return undefined;
+      }
+    }
+    const job = await this.insertJobRecord(
+      moduleId,
+      payload,
+      scheduledAt,
+      transaction
+    );
+    return job.id;
+  }
+
+  private async flushPendingJobs(
+    pendingJobs: PendingJob[],
+    transaction: Transaction
+  ): Promise<string[]> {
+    const dropped: string[] = [];
+    for (const pending of pendingJobs) {
+      const accepted = await this.enqueueWithLimit(
+        pending.moduleId,
+        pending.payload,
+        pending.scheduledAt ?? new Date(),
+        pending.maxQueueLength,
+        transaction
+      );
+      if (!accepted) {
+        dropped.push(pending.moduleId);
+      }
+    }
+    return dropped;
+  }
+
+  private async insertJobRecord(
     moduleId: string,
     payload: unknown,
     scheduledAt: Date,
     transaction?: Transaction
-  ): Promise<void> {
+  ): Promise<DistributedJobModel> {
     try {
-      await DistributedJobModel.create(
+      return await DistributedJobModel.create(
         {
           id: randomUUID(),
           moduleId,
@@ -195,7 +256,23 @@ export class PostgresPersistenceProvider implements PersistenceProvider {
       );
     } catch (error) {
       if (error instanceof UniqueConstraintError) {
-        return;
+        const existing = await DistributedJobModel.findOne({
+          where: { moduleId, scheduledAt },
+          transaction,
+        });
+        if (existing) {
+          return existing;
+        }
+        return await DistributedJobModel.create(
+          {
+            id: randomUUID(),
+            moduleId,
+            payload,
+            scheduledAt,
+            status: "queued",
+          },
+          { transaction }
+        );
       }
       throw error;
     }
