@@ -1,4 +1,10 @@
 import { Tiger, http, cron, mail, example, queue } from "../src/index.ts";
+import type { 
+  HttpModule,
+  CronModule,
+  ExampleModule,
+  QueueModule,
+ } from "../src/index.ts";
 
 async function main() {
   const tiger = new Tiger({
@@ -45,7 +51,7 @@ async function main() {
   await tiger.use(mail);
   await tiger.use(queue);
 
-  await tiger.define<{ max?: number }, { number?: number, count?: number }>({
+  await tiger.define<ExampleModule, { count: number }>({
     id: "distributed-hello",
     target: "example:hello",
     distributed: true,
@@ -60,7 +66,7 @@ async function main() {
     }
   });
 
-  await tiger.define<{}, {count: number}>({
+  await tiger.define<CronModule<{ count: number }>>({
     id: "distributed-scheduled-job",
     target: "cron:*/5 * * * * *",
     distributed: true,
@@ -72,15 +78,15 @@ async function main() {
     }
   });
 
-  await tiger.define<{ req: any; res: any }>({
+  await tiger.define<HttpModule>({
     id: "request",
     target: "http:/hello",
-    async process(_state, { req, res }) {
+    async process(_state, { res }) {
       res.send("success!");
     }
   });
 
-  await tiger.define({
+  await tiger.define<QueueModule<{message: string}>>({
     target: "queue:hello",
     async process(_state, message) {
       this.log(JSON.stringify(message));

@@ -10,9 +10,11 @@ import { createPostgresScheduleStore } from "./cron/postgres-store.ts";
 import { dispatchModule } from "../runner.ts";
 import { getDistributedCoordinator } from "../distributed/index.ts";
 
-type CronModuleEntry = {
+export type CronModule<State> = ExtendedModule<object, State>;
+
+type CronModuleEntry<State> = {
   readonly expression: string;
-  readonly module: ExtendedModule<object, object>;
+  readonly module: CronModule<State>;
 };
 
 const sleep = (ms: number) =>
@@ -23,7 +25,7 @@ export default new (class implements TigerPlugin {
 
   private _logger: Logger = getLogger("cron");
   private _config!: ResolvedCronConfig;
-  private _registry: Map<string, CronModuleEntry> = new Map();
+  private _registry: Map<string, CronModuleEntry<any>> = new Map();
   private _polling = false;
   private _store!: CronScheduleStore;
 
@@ -40,10 +42,10 @@ export default new (class implements TigerPlugin {
 
     const plugin = this;
     tiger.register(
-      new (class extends BaseResolver<object, object> {
+      new (class<State> extends BaseResolver<object, State> {
         readonly protocol: string = "cron";
-        async define(path: string, _module: ExtendedModule<object, object>) {
-          await plugin._registerModule(path, _module);
+        async define(path: string, _module: CronModule<State>) {
+          await plugin._registerModule<State>(path, _module);
         }
       })()
     );
@@ -59,9 +61,9 @@ export default new (class implements TigerPlugin {
     });
   }
 
-  private async _registerModule(
+  private async _registerModule<State = any>(
     expression: string,
-    _module: ExtendedModule<object, object>
+    _module: CronModule<State>
   ) {
     if (!_module.id) {
       this._logger.error(

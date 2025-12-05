@@ -19,7 +19,7 @@ Plugins provides special ability to connect modules or communicate to external s
 protocol resolver. A protocol resolver must implement at least one of the following methods:
 
  - `Resolver#define(target, module)`: to create a module runs on target,
- - `Resolver#notified(target, param)`: to communicate with module or external system on target.
+ - `Resolver#notified(target, param, module, next?)`: to communicate with module or external system on target, with access to the current module instance/state before optionally forwarding to `next`.
 
 see [Plugin](./plugin.md) for details.
 

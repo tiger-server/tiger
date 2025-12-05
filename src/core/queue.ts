@@ -3,9 +3,11 @@ import { BaseResolver } from "../resolver.ts";
 import { getLogger, type Logger } from "../logger.ts";
 import { dispatchModule } from "../runner.ts";
 
+export type QueueModule<Param> = ExtendedModule<Param, any>;
+
 class InMemoryQueue {
   private readonly logger: Logger;
-  private registry = new Map<string, ExtendedModule<any, any>[]>();
+  private registry = new Map<string, QueueModule<any>[]>();
   private queues = new Map<string, any[]>();
   private processing = new Set<string>();
 
@@ -13,7 +15,7 @@ class InMemoryQueue {
     this.logger = logger;
   }
 
-  register(path: string, module: ExtendedModule<any, any>) {
+  register(path: string, module: QueueModule<any>) {
     const modules = this.registry.get(path) ?? [];
     modules.push(module);
     this.registry.set(path, modules);
@@ -69,10 +71,7 @@ class InMemoryQueue {
   }
 }
 
-class QueueResolver extends BaseResolver<any, any> {
-  getModule(path: string): Promise<ExtendedModule<any, any> | null> {
-    return Promise.resolve(null);
-  }
+class QueueResolver<Param> extends BaseResolver<Param, any> {
   readonly protocol: string;
   private readonly queue: InMemoryQueue;
 
@@ -82,11 +81,15 @@ class QueueResolver extends BaseResolver<any, any> {
     this.queue = queue;
   }
 
-  async define(path: string, module: ExtendedModule<any, any>) {
+  async define(path: string, module: QueueModule<Param>) {
     this.queue.register(path, module);
   }
 
-  async notified(path: string, param: any, _module: ExtendedModule<any, any>) {
+  async notified(
+    path: string,
+    param: Param,
+    _module: QueueModule<Param>
+  ) {
     this.queue.enqueue(path, param);
   }
 }
@@ -99,7 +102,7 @@ export default new (class implements TigerPlugin {
     const queue = new InMemoryQueue(this.logger);
     const protocols = ["queue", "zmq"];
     for (const protocol of protocols) {
-      tiger.register(new QueueResolver(protocol, queue));
+      tiger.register(new QueueResolver<any>(protocol, queue));
     }
     this.logger.info(
       `in-memory queue plugin initialized for protocols: ${protocols.join(", ")}`

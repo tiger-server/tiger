@@ -33,10 +33,15 @@ export abstract class BaseResolver<Param, State>
     )
   }
 
-  async notified(path: string, param: Param, _module: ExtendedModule<Param, State>): Promise<void> {
+  async notified(
+    path: string,
+    param: Param,
+    _module: ExtendedModule<Param, State>,
+    next?: (path: string, param: object) => Promise<void>
+  ): Promise<void> {
     this._logger.info(
       `notified module ${_module.id} at ${this.protocol}:${path} with param ${JSON.stringify(param)}`
     );
-    processWithMutableState(_module, param);
+    await processWithMutableState(_module, param);
   }
 }

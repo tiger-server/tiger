@@ -197,6 +197,7 @@ You can cap the backlog with `distributed.maxQueueLength` (env: `TIGER_DISTRIBUT
 ### How plugin works
 
 A plugin is just a function which takes tiger instance as argument and do some dirty work, including but not limited to register a new resolver.
+`Resolver#notified` receives `(path, param, module, next?)`, so plugins can inspect or mutate the module state before optionally forwarding the message.
 
 ```js
 const somePlugin = {
@@ -208,8 +209,8 @@ const somePlugin = {
         // do async definition work
       },
 
-      async notified(path, param, next) {
-        // do async notification work
+      async notified(path, param, module, next) {
+        // do async notification work, you can read/write module.state() here
       }
     },
 

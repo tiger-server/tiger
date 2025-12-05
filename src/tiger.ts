@@ -31,6 +31,9 @@ export function makeTargetFromString(target: string): Target {
 
 export type ExtendedModule<Param, State> = Module<Param, State> & Extension<Param, State>
 
+type ModuleParam<M> = M extends Module<infer P, any> ? P : never;
+type ModuleState<M> = M extends Module<any, infer S> ? S : never;
+
 export type TigerCall = (tiger: Tiger) => Promise<void> | void
 
 export interface TigerPlugin {
@@ -106,7 +109,7 @@ export class Tiger {
     return this;
   }
 
-  async define<Param = object, State = object>(_module: Module<Param, State>) {
+  async define<M, State = object>(_module: Module<ModuleParam<M>, ModuleState<M> & State>) {
     if (_module.distributed && !_module.id) {
       throw new Error(
         "Distributed modules must provide a stable id in their definition"
@@ -140,19 +143,27 @@ export class Tiger {
 
     const { protocol, path } = makeTargetFromString(target);
     const resolver = this._resolvers[protocol]
-    const _module = this._targetModules[target]?.find(mod => mod.id === from)!;
+    const targetModule =
+      this._targetModules[target]?.find((mod) => mod.id === from) ??
+      this._targetModules[target]?.[0] ??
+      this._modules[from];
 
     if (await this._enqueueDistributed(target, param)) {
       return;
     }
 
     if (resolver && resolver.notified) {
-      await resolver.notified(path, param, _module, async (nextTarget, nextParam) => {
+      await resolver.notified(
+        path,
+        param,
+        targetModule as any,
+        async (nextTarget, nextParam) => {
         const handled = await this._enqueueDistributed(nextTarget, nextParam);
         if (!handled) {
           await this._notify(target, nextTarget, nextParam);
         }
-      })
+        }
+      );
     } else {
       this._warn(`No valid notification handler found for protocol [${protocol}]`)
     }
@@ -239,7 +250,7 @@ export class Tiger {
     return this._persistence;
   }
 
-  async resolver(key: string): Promise<Resolver<any, any>> {
+  async resolver(key: string): Promise<Resolver<any, any> | undefined> {
     return this._resolvers[key];
   }
 

@@ -8,7 +8,6 @@ import type {
   PendingJob,
   QueueJob,
 } from "../persistence/index.ts";
-import type { Resolver } from "../resolver.ts";
 import {
   processWithMutableState,
   DISTRIBUTED_STATE_SYMBOL,

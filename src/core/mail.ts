@@ -26,7 +26,12 @@ export default new class implements TigerPlugin {
 
     tiger.register(new class extends BaseResolver<MailParam, object> {
       readonly protocol: string = "mail"
-      async notified(target: string, param: MailParam) {
+      async notified(
+        target: string,
+        param: MailParam,
+        _module: ExtendedModule<MailParam, object>,
+        next?: (path: string, param: object) => Promise<void>
+      ) {
         logger.info(`Sending mail to ${target}: ${JSON.stringify(param)}`)
         const option = { from: config.sender, to: target, ...param }
         await transport.sendMail(option)
