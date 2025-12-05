@@ -22,8 +22,7 @@
     "pino": "^10.1.0",
     "pino-pretty": "^13.1.2",
     "sequelize": "^6.37.7",
-    "sqlite3": "^5.1.7",
-    "zeromq": "^6.5.0"
+    "sqlite3": "^5.1.7"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",

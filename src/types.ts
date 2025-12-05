@@ -33,11 +33,6 @@ interface MonitorConfig {
   dbPath?: string;
 }
 
-interface ZmqConfig {
-  bindEndpoint?: string;
-  connectEndpoint?: string;
-}
-
 interface DistributedConfig {
   driver?: "level" | "postgres";
   levelDbPath?: string;
@@ -52,7 +47,6 @@ export interface TigerConfig {
   cron?: CronConfig;
   http?: HttpConfig;
   monitor?: MonitorConfig;
-  zmq?: ZmqConfig;
   distributed?: DistributedConfig;
 }
 

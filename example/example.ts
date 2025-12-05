@@ -1,4 +1,4 @@
-import { Tiger, http, cron, mail, example, zmq } from "../src/index.ts";
+import { Tiger, http, cron, mail, example, queue } from "../src/index.ts";
 
 async function main() {
   const tiger = new Tiger({
@@ -18,10 +18,6 @@ async function main() {
       pollIntervalMs: Number(process.env.TIGER_CRON_POLL_INTERVAL_MS ?? "1000"),
       requeueDelayMs: Number(process.env.TIGER_CRON_REQUEUE_DELAY_MS ?? "5000"),
       levelDbPath: process.env.TIGER_CRON_LEVEL_PATH ?? ".tiger-cron"
-    },
-    zmq: {
-      bindEndpoint: process.env.TIGER_ZMQ_BIND ?? "tcp://0.0.0.0:9528",
-      connectEndpoint: process.env.TIGER_ZMQ_CONNECT ?? "tcp://127.0.0.1:9528"
     },
     mail: {
       sender: "sender@example.com",
@@ -47,7 +43,7 @@ async function main() {
   await tiger.use(cron);
   await tiger.use(example);
   await tiger.use(mail);
-  await tiger.use(zmq);
+  await tiger.use(queue);
 
   await tiger.define<{ max?: number }, { number?: number, count?: number }>({
     id: "distributed-hello",
@@ -70,7 +66,7 @@ async function main() {
     distributed: true,
     async process({ count = 0 }) {
       const nextCount = count + 1;
-      await this.notify("zmq:hello", { message: "hello world" });
+      await this.notify("queue:hello", { message: "hello world" });
       await this.notify("example:hello", { max: nextCount });
       return { count: nextCount };
     }
@@ -85,7 +81,7 @@ async function main() {
   });
 
   await tiger.define({
-    target: "zmq:hello",
+    target: "queue:hello",
     async process(_state, message) {
       this.log(JSON.stringify(message));
     }

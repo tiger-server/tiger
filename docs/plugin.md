@@ -4,7 +4,7 @@ Tiger bundled with few standard plugins:
 
   - `cron`: for scheduled tasks,
   - `http`: for http request listeners,
-  - `zmq`: for using message queue communication between modules,
+  - `queue`: for in-memory message queue communication between modules,
   - `mail`: for sending out email.
 
 ## Plugin details
@@ -85,33 +85,19 @@ Configure the listening socket via `tiger.config.http` or `TIGER_HTTP_HOST`/`TIG
 ```
 
 
-### `zmq`
+### `queue`
 
-`zmq` plugin creates a set of queues to communicate between modules.
-You can either create a module follows a queue, or send messages to the queue in any module(with `Tiger#notify`).
-
-Configure the ZeroMQ sockets per instance:
-
-```ts
-const tiger = new Tiger({
-  zmq: {
-    bindEndpoint: "tcp://0.0.0.0:9528",
-    connectEndpoint: "tcp://127.0.0.1:9528"
-  }
-});
-```
-
-Environment fallbacks `TIGER_ZMQ_BIND` and `TIGER_ZMQ_CONNECT` remain available.
+`queue` plugin creates in-memory queues to communicate between modules within the same process. Use `queue:` in `target` strings (legacy `zmq:` remains an alias) and emit messages via `Tiger#notify`. No external services or runtime-specific dependencies are required.
 
 #### Attributes
 
-| Attributes    	| Value                           	|
-|---------------	|---------------------------------	|
-| Stateless     	| N                               	|
-| Message       	| Y                               	|
-| Messge Format 	| what you sent in `Tiger#notify` 	|
-| `define`?     	| Y                               	|
-| `notify`?     	| Y                               	|
+| Attributes      | Value                           |
+|-----------------|---------------------------------|
+| Stateless       | N                               |
+| Message         | Y                               |
+| Messge Format   | what you sent in `Tiger#notify` |
+| `define`?       | Y                               |
+| `notify`?       | Y                               |
 
 #### Example
 
@@ -119,7 +105,7 @@ Environment fallbacks `TIGER_ZMQ_BIND` and `TIGER_ZMQ_CONNECT` remain available.
 
 ```js
 {
-  target: "zmq:hello", 
+  target: "queue:hello",
   async process(state, message) {
     this.log(`Message received: ${JSON.stringify(message)}`)
   }
@@ -129,7 +115,7 @@ Environment fallbacks `TIGER_ZMQ_BIND` and `TIGER_ZMQ_CONNECT` remain available.
 **notify**
 
 ```js
-this.notify("zmq:hello", { message: "hello, world" })
+this.notify("queue:hello", { message: "hello, world" })
 ```
 
 ### `mail`
@@ -196,7 +182,7 @@ await tiger.define({
   target: "http:/tasks",
   async process(state, { req, res }) {
     const count = (state.count ?? 0) + 1;
-    await this.notify("zmq:logs", { count });
+    await this.notify("queue:logs", { count });
     return { count };
   }
 });

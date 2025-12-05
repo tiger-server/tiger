@@ -13,7 +13,7 @@ npm install tiger-server --save
 and create `server.ts`:
 
 ```ts
-import { Tiger, http, cron, mail, zmq } from "tiger-server";
+import { Tiger, http, cron, mail, queue } from "tiger-server";
 
 async function main() {
   const tiger = new Tiger({
@@ -33,10 +33,6 @@ async function main() {
       requeueDelayMs: Number(process.env.TIGER_CRON_REQUEUE_DELAY_MS ?? "5000"),
       levelDbPath: process.env.TIGER_CRON_LEVEL_PATH ?? ".tiger-cron"
     },
-    zmq: {
-      bindEndpoint: process.env.TIGER_ZMQ_BIND ?? "tcp://0.0.0.0:9528",
-      connectEndpoint: process.env.TIGER_ZMQ_CONNECT ?? "tcp://127.0.0.1:9528"
-    },
     distributed: process.env.TIGER_DISTRIBUTED_DRIVER
       ? {
           driver: process.env.TIGER_DISTRIBUTED_DRIVER as "level" | "postgres",
@@ -50,11 +46,11 @@ async function main() {
   await tiger.use(http);
   await tiger.use(cron);
   await tiger.use(mail);
-  await tiger.use(zmq);
+  await tiger.use(queue);
 
   await tiger.define({
     id: "hello",
-    target: "zmq:hello",
+    target: "queue:hello",
     async process(_state, message) {
       this.log(`Message received: ${JSON.stringify(message)}`);
     }
@@ -65,7 +61,7 @@ async function main() {
     target: "cron:*/5 * * * * *",
     async process({ count = 0 }) {
       count++;
-      await this.notify("zmq:hello", { count });
+      await this.notify("queue:hello", { count });
       return { count }
     }
   });
@@ -74,7 +70,7 @@ async function main() {
     id: "request",
     target: "http:/hello",
     async process(_state, { req, res }) {
-      await this.notify("zmq:hello", { message: "request recieved" });
+      await this.notify("queue:hello", { message: "request recieved" });
       res.send("success!")
     }
   });
@@ -97,7 +93,7 @@ This relies on Node’s native TypeScript loader, so there is no build step and 
 
 > The Monitor UI follows `monitor.host:monitor.port` (defaults `0.0.0.0:9753`). Tweak `monitor` config or `TIGER_MONITOR_*` env vars—or disable it entirely with `monitor.disabled`/`TIGER_MONITOR_DISABLED=1`.
 
-> The `zmq` plugin binds to `zmq.bindEndpoint` and connects with `zmq.connectEndpoint` (env fallbacks `TIGER_ZMQ_BIND`/`TIGER_ZMQ_CONNECT`), so you can run multiple instances without port conflicts.
+> The `queue` plugin is now an in-memory message bus. It delivers `queue:` (or legacy `zmq:`) notifications to modules defined in the same process without any external socket or runtime-specific dependency.
 
 > The `cron` plugin persists its schedule either in LevelDB (`cron.levelDbPath`, default `.tiger-cron`) or, when you run distributed mode with a Postgres driver, inside the shared Postgres database. Multiple Tiger processes simply read from the same store and pop due runs cooperatively.
 

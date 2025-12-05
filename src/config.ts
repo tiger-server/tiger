@@ -9,8 +9,6 @@ const DEFAULT_MONITOR_PORT = 9753;
 const DEFAULT_MONITOR_HOST = "0.0.0.0";
 const DEFAULT_MONITOR_BASE_PATH = "/tiger/monitor";
 const DEFAULT_MONITOR_DB = ".tiger-monitor";
-const DEFAULT_ZMQ_BIND = "tcp://0.0.0.0:9528";
-const DEFAULT_ZMQ_CONNECT = "tcp://127.0.0.1:9528";
 const DEFAULT_CRON_LEVEL_DB = ".tiger-cron";
 const DEFAULT_DISTRIBUTED_LEVEL_DB = ".tiger-distributed";
 const DEFAULT_HEARTBEAT_INTERVAL = 3000;
@@ -58,11 +56,6 @@ export interface ResolvedCronConfig {
   pollIntervalMs: number;
   requeueDelayMs: number;
   levelDbPath: string;
-}
-
-export interface ResolvedZmqConfig {
-  bindEndpoint: string;
-  connectEndpoint: string;
 }
 
 export interface ResolvedDistributedConfig {
@@ -114,17 +107,6 @@ export function resolveCronConfig(config?: TigerConfig): ResolvedCronConfig {
     cron.levelDbPath ?? process.env.TIGER_CRON_LEVEL_PATH ?? DEFAULT_CRON_LEVEL_DB
   );
   return { pollIntervalMs, requeueDelayMs, levelDbPath };
-}
-
-export function resolveZmqConfig(config?: TigerConfig): ResolvedZmqConfig {
-  const zmq = config?.zmq ?? {};
-  const bindEndpoint =
-    zmq.bindEndpoint ?? process.env.TIGER_ZMQ_BIND ?? DEFAULT_ZMQ_BIND;
-  const connectEndpoint =
-    zmq.connectEndpoint ??
-    process.env.TIGER_ZMQ_CONNECT ??
-    DEFAULT_ZMQ_CONNECT;
-  return { bindEndpoint, connectEndpoint };
 }
 
 export function resolveDistributedConfig(
