@@ -70,6 +70,9 @@ class InMemoryQueue {
 }
 
 class QueueResolver extends BaseResolver<any, any> {
+  getModule(path: string): Promise<ExtendedModule<any, any> | null> {
+    return Promise.resolve(null);
+  }
   readonly protocol: string;
   private readonly queue: InMemoryQueue;
 
@@ -83,7 +86,7 @@ class QueueResolver extends BaseResolver<any, any> {
     this.queue.register(path, module);
   }
 
-  async notified(path: string, param: any) {
+  async notified(path: string, param: any, _module: ExtendedModule<any, any>) {
     this.queue.enqueue(path, param);
   }
 }

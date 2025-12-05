@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 
-import type { ExtendedModule } from "../tiger.ts";
+import { makeTargetFromString, type ExtendedModule, type Tiger } from "../tiger.ts";
 import type { Logger } from "../logger.ts";
 import type { ResolvedDistributedConfig } from "../config.ts";
 import type {
@@ -8,6 +8,7 @@ import type {
   PendingJob,
   QueueJob,
 } from "../persistence/index.ts";
+import type { Resolver } from "../resolver.ts";
 import {
   processWithMutableState,
   DISTRIBUTED_STATE_SYMBOL,
@@ -39,18 +40,21 @@ export class DistributedCoordinator {
   private readonly provider: PersistenceProvider;
   private readonly metadata?: NodeMetadata;
   private readonly jobContext = new AsyncLocalStorage<JobContext>();
+  private readonly instance: Tiger;
   constructor(
     config: ResolvedDistributedConfig,
     instanceId: string,
     logger: Logger,
     provider: PersistenceProvider,
-    metadata?: NodeMetadata
+    instance: Tiger,
+    metadata?: NodeMetadata,
   ) {
     this.config = config;
     this.instanceId = instanceId;
     this.logger = logger;
     this.provider = provider;
     this.metadata = metadata;
+    this.instance = instance;
   }
 
   async start() {
@@ -202,8 +206,13 @@ export class DistributedCoordinator {
   ): Promise<void> {
     const context: JobContext = { pending: [] };
     await this.jobContext.run(context, async () => {
+      const target = makeTargetFromString(module.target)
+      const resolver = await this.instance.resolver(target.protocol);
+
       try {
-        await processWithMutableState(module, job.payload);
+        await resolver!.notified(target.path, job.payload, module, async (path, param) => {
+          await this.instance._enqueueDistributed(path, param);
+        });
         const state = this.getModuleState(module);
         const dropped = await this.provider.ackJob(
           job,

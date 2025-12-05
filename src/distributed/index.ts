@@ -2,6 +2,7 @@ import type { Logger } from "../logger.ts";
 import type { ResolvedDistributedConfig } from "../config.ts";
 import { DistributedCoordinator, type NodeMetadata } from "./controller.ts";
 import type { PersistenceProvider } from "../persistence/index.ts";
+import { Tiger } from "../tiger.ts";
 
 let coordinator: DistributedCoordinator | undefined;
 
@@ -10,6 +11,7 @@ export function initDistributedCoordinator(
   instanceId: string,
   logger: Logger,
   provider: PersistenceProvider,
+  tiger: Tiger,
   metadata?: NodeMetadata
 ): DistributedCoordinator {
   if (!coordinator) {
@@ -18,7 +20,8 @@ export function initDistributedCoordinator(
       instanceId,
       logger,
       provider,
-      metadata
+      tiger,
+      metadata,
     );
     void coordinator.start();
   }

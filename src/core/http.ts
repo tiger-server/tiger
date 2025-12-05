@@ -21,6 +21,9 @@ class HttpPlugin implements TigerPlugin {
     tiger.register(new class extends BaseResolver<object, object> {
       readonly protocol: string = "http";
       async define(path: string, _module: ExtendedModule<object, object>) {
+        if (_module.distributed) {
+          throw new Error("http resolver does not support distributed modules");
+        }
         server.get(path, async (req, res) => {
           try {
             await dispatchModule(_module, { req, res });

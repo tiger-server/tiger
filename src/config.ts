@@ -7,7 +7,6 @@ const DEFAULT_HTTP_PORT = 9527;
 const DEFAULT_HTTP_HOST = "0.0.0.0";
 const DEFAULT_MONITOR_PORT = 9753;
 const DEFAULT_MONITOR_HOST = "0.0.0.0";
-const DEFAULT_MONITOR_BASE_PATH = "/tiger/monitor";
 const DEFAULT_MONITOR_DB = ".tiger-monitor";
 const DEFAULT_CRON_LEVEL_DB = ".tiger-cron";
 const DEFAULT_DISTRIBUTED_LEVEL_DB = ".tiger-distributed";
@@ -22,23 +21,6 @@ function parseNumber(value: string | undefined, fallback: number): number {
   return Number.isNaN(parsed) ? fallback : parsed;
 }
 
-function normalizeBasePath(input: string): string {
-  if (!input) {
-    return "/";
-  }
-  let normalized = input.trim();
-  if (!normalized.startsWith("/")) {
-    normalized = `/${normalized}`;
-  }
-  if (normalized.length > 1) {
-    normalized = normalized.replace(/\/+$/, "");
-    if (normalized === "") {
-      normalized = "/";
-    }
-  }
-  return normalized || "/";
-}
-
 export interface ResolvedHttpConfig {
   host: string;
   port: number;
@@ -47,7 +29,6 @@ export interface ResolvedHttpConfig {
 export interface ResolvedMonitorConfig {
   host: string;
   port: number;
-  basePath: string;
   disabled: boolean;
   dbPath: string;
 }
@@ -84,15 +65,12 @@ export function resolveMonitorConfig(
     parseNumber(process.env.TIGER_MONITOR_PORT, DEFAULT_MONITOR_PORT);
   const host =
     monitor.host ?? process.env.TIGER_MONITOR_HOST ?? DEFAULT_MONITOR_HOST;
-  const basePath = normalizeBasePath(
-    monitor.basePath ?? process.env.TIGER_MONITOR_BASE_PATH ?? DEFAULT_MONITOR_BASE_PATH
-  );
   const disabled =
     monitor.disabled ?? process.env.TIGER_MONITOR_DISABLED === "1";
   const dbPath = path.resolve(
     monitor.dbPath ?? process.env.TIGER_MONITOR_DB ?? DEFAULT_MONITOR_DB
   );
-  return { host, port, basePath, disabled, dbPath };
+  return { host, port, disabled, dbPath };
 }
 
 export function resolveCronConfig(config?: TigerConfig): ResolvedCronConfig {

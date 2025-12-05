@@ -1,4 +1,4 @@
-import type { TigerPlugin, Tiger } from "../tiger.ts";
+import type { TigerPlugin, Tiger, ExtendedModule } from "../tiger.ts";
 import { BaseResolver } from "../resolver.ts"
 import { getLogger, type Logger } from "../logger.ts";
 import nodemailer from "nodemailer";

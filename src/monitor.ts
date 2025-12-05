@@ -25,16 +25,12 @@ export function configureManagementProvider(provider: PersistenceProvider) {
 
 const DEFAULT_HISTORY_LIMIT = 10;
 const MAX_HISTORY_LIMIT = 100;
+export const MONITOR_BASE_PATH = "/tiger/monitor";
 export const MANAGEMENT_BASE_PATH = "/tiger/manage";
 const MANAGEMENT_API_ROUTE = `${MANAGEMENT_BASE_PATH}/api/nodes`;
+const MONITOR_API_ROUTE = `${MONITOR_BASE_PATH}/api/modules`;
 
-let monitorOptions: ResolvedMonitorConfig = resolveMonitorConfig();
-let monitorApiRoute = resolveMonitorPath(
-  monitorOptions.basePath,
-  "/api/modules"
-);
-let monitorUiRoute = resolveMonitorPath(monitorOptions.basePath, "/");
-let monitorStorePath = monitorOptions.dbPath;
+const monitorStorePath = resolveMonitorConfig().dbPath;
 
 type SerializableValue =
   | null
@@ -378,55 +374,23 @@ const monitor: MonitorApi = {
 export function configureMonitorServer(
   options: ResolvedMonitorConfig = resolveMonitorConfig()
 ) {
-  const previous = monitorOptions;
-  monitorOptions = options;
-
-  const previousStorePath = monitorStorePath;
-  monitorStorePath = monitorOptions.dbPath;
-  if (monitorStore && monitorStorePath !== previousStorePath) {
-    logger.warn(
-      "monitor store already initialized; ignoring new db path configuration"
-    );
-    monitorStorePath = previousStorePath;
-  }
-
-  monitorApiRoute = resolveMonitorPath(
-    monitorOptions.basePath,
-    "/api/modules"
-  );
-  monitorUiRoute = resolveMonitorPath(monitorOptions.basePath, "/");
-
-  if (monitorServerStarted) {
-    if (
-      previous.port !== monitorOptions.port ||
-      previous.host !== monitorOptions.host ||
-      previous.basePath !== monitorOptions.basePath
-    ) {
-      logger.warn(
-        "monitor server already running; ignoring new network configuration"
-      );
-    }
-    return;
-  }
-
-  if (!monitorOptions.disabled) {
-    startMonitorServer();
+  if (!options.disabled) {
+    startMonitorServer(options);
   } else {
     logger.info("monitor server disabled via configuration");
   }
 }
 
-function startMonitorServer() {
-  if (monitorServerStarted || monitorOptions.disabled) {
+function startMonitorServer(options: ResolvedMonitorConfig) {
+  if (options.disabled) {
     return;
   }
-  monitorServerStarted = true;
 
   const app = express();
   app.use(cors());
   app.use(express.json());
 
-  app.get(monitorApiRoute, async (req, res) => {
+  app.get(MONITOR_API_ROUTE, async (req, res) => {
     const limit = parseHistoryLimit((req.query as Record<string, unknown>)?.n);
     try {
       const modules = await ensureMonitorStore().listModules(limit);
@@ -439,28 +403,26 @@ function startMonitorServer() {
     }
   });
 
-  app.get(monitorUiRoute, (_req, res) => {
+  app.get(MONITOR_BASE_PATH, (_req, res) => {
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     res.send(
       renderMonitorPage({
-        apiPath: monitorApiRoute,
+        apiPath: MONITOR_API_ROUTE,
         defaultLimit: DEFAULT_HISTORY_LIMIT,
         maxLimit: MAX_HISTORY_LIMIT,
       })
     );
   });
 
-  if (monitorOptions.basePath !== "/" && monitorUiRoute !== "/") {
-    app.get("/", (_req, res) => {
-      res.redirect(monitorUiRoute);
-    });
-  }
+  app.get("/", (_req, res) => {
+    res.redirect(MONITOR_BASE_PATH);
+  });
 
   registerManagementRoutes(app);
 
-  const server = app.listen(monitorOptions.port, monitorOptions.host, () => {
+  const server = app.listen(options.port, options.host, () => {
     logger.info(
-      `monitor server listening on http://${monitorOptions.host}:${monitorOptions.port}${monitorUiRoute}`
+      `monitor server listening on http://${options.host}:${options.port}${MONITOR_BASE_PATH}`
     );
   });
 
@@ -898,7 +860,7 @@ function renderManagementPage(): string {
     <h1>Tiger Management</h1>
     <div class="toolbar">
       <button id="refresh-btn">Refresh</button>
-      <a href="${monitorUiRoute}" style="margin-left:auto;">View Module Monitor</a>
+      <a href="${MONITOR_BASE_PATH}" style="margin-left:auto;">View Module Monitor</a>
     </div>
     <div id="manage-status"></div>
     <div id="nodes"></div>
@@ -1052,20 +1014,4 @@ function renderManagementPage(): string {
     </script>
   </body>
 </html>`;
-}
-
-function resolveMonitorPath(basePath: string, suffix: string): string {
-  const normalizedSuffix =
-    !suffix || suffix === "/"
-      ? ""
-      : suffix.startsWith("/")
-        ? suffix
-        : `/${suffix}`;
-  if (basePath === "/" || basePath === "") {
-    return normalizedSuffix || "/";
-  }
-  if (!normalizedSuffix) {
-    return basePath;
-  }
-  return `${basePath}${normalizedSuffix}`;
 }

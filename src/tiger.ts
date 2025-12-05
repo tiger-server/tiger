@@ -6,7 +6,7 @@ import { nanoid } from "nanoid";
 import type { Resolver } from "./resolver.ts";
 import type { TigerConfig, Module, Target } from "./types.ts";
 import { getLogger, type Logger } from "./logger.ts";
-import monitor, { configureMonitorServer, MANAGEMENT_BASE_PATH, configureManagementProvider } from "./monitor.ts";
+import monitor, { configureMonitorServer, MANAGEMENT_BASE_PATH, configureManagementProvider, MONITOR_BASE_PATH } from "./monitor.ts";
 import {
   resolveDistributedConfig,
   resolveMonitorConfig,
@@ -23,7 +23,7 @@ import type { PersistenceProvider } from "./persistence/index.ts";
 
 export type { TigerConfig, Module, Target } from "./types.ts";
 
-function makeTargetFromString(target: string): Target {
+export function makeTargetFromString(target: string): Target {
   const EXTRACTOR = /(?<protocol>\w+):(?<path>.+)/;
   const { protocol, path } = EXTRACTOR.exec(target)!["groups"];
   return { protocol, path };
@@ -140,13 +140,14 @@ export class Tiger {
 
     const { protocol, path } = makeTargetFromString(target);
     const resolver = this._resolvers[protocol]
+    const _module = this._targetModules[target]?.find(mod => mod.id === from)!;
 
     if (await this._enqueueDistributed(target, param)) {
       return;
     }
 
     if (resolver && resolver.notified) {
-      await resolver.notified(path, param, async (nextTarget, nextParam) => {
+      await resolver.notified(path, param, _module, async (nextTarget, nextParam) => {
         const handled = await this._enqueueDistributed(nextTarget, nextParam);
         if (!handled) {
           await this._notify(target, nextTarget, nextParam);
@@ -194,26 +195,28 @@ export class Tiger {
           "Distributed modules require a configured distributed section"
         );
       }
+      const monitorBaseUrl = `http://${this._monitorConfig.host}:${this._monitorConfig.port}`;
       this._distributedConfig = config;
       const logger = getLogger("distributed");
       const monitorUrl = this._monitorConfig.disabled
         ? undefined
-        : `http://${this._monitorConfig.host}:${this._monitorConfig.port}${this._monitorConfig.basePath}`;
+        : `${monitorBaseUrl}${MONITOR_BASE_PATH}`;
       const managementUrl = this._monitorConfig.disabled
         ? undefined
-        : `http://${this._monitorConfig.host}:${this._monitorConfig.port}${MANAGEMENT_BASE_PATH}`;
+        : `${monitorBaseUrl}${MANAGEMENT_BASE_PATH}`;
       this._distributed = initDistributedCoordinator(
         config,
         this._instanceId,
         logger,
         this._persistence,
+        this,
         { monitorUrl, managementUrl }
       );
     }
     return this._distributed;
   }
 
-  private async _enqueueDistributed(
+  async _enqueueDistributed(
     target: string,
     param: any
   ): Promise<boolean> {
@@ -234,6 +237,10 @@ export class Tiger {
 
   get persistence(): PersistenceProvider {
     return this._persistence;
+  }
+
+  async resolver(key: string): Promise<Resolver<any, any>> {
+    return this._resolvers[key];
   }
 
   _handlerAdapter<Param, State>(handler: Module<Param, State>) {
