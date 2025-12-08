@@ -1,18 +1,5 @@
 import type { Extension } from "./tiger.ts";
 
-interface MailConfig {
-  sender: string;
-  channel: string;
-  transport: {
-    host: string;
-    port: number;
-    secure: boolean;
-    auth: {
-      user: string;
-      pass: string;
-    };
-  };
-}
 
 interface CronConfig {
   pollIntervalMs?: number;
@@ -43,7 +30,6 @@ interface DistributedConfig {
 
 export interface TigerConfig {
   instanceId?: string;
-  mail?: MailConfig;
   cron?: CronConfig;
   http?: HttpConfig;
   monitor?: MonitorConfig;

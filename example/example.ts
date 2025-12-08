@@ -1,4 +1,4 @@
-import { Tiger, http, cron, mail, example, queue } from "../src/index.ts";
+import { Tiger, http, cron, example, queue } from "../src/index.ts";
 import type { 
   HttpModule,
   CronModule,
@@ -25,19 +25,6 @@ async function main() {
       requeueDelayMs: Number(process.env.TIGER_CRON_REQUEUE_DELAY_MS ?? "5000"),
       levelDbPath: process.env.TIGER_CRON_LEVEL_PATH ?? ".tiger-cron"
     },
-    mail: {
-      sender: "sender@example.com",
-      transport: {
-        host: "smtp.example.com",
-        port: 465,
-        secure: true,
-        auth: {
-          user: "sender@example.com",
-          pass: "password"
-        }
-      },
-      channel: "mail:someone@another.com"
-    },
     distributed: {
       driver: "postgres",
       levelDbPath:
@@ -48,7 +35,6 @@ async function main() {
   await tiger.use(http);
   await tiger.use(cron);
   await tiger.use(example);
-  await tiger.use(mail);
   await tiger.use(queue);
 
   await tiger.define<ExampleModule, { count: number }>({

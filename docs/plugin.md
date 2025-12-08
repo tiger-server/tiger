@@ -5,7 +5,6 @@ Tiger bundled with few standard plugins:
   - `cron`: for scheduled tasks,
   - `http`: for http request listeners,
   - `queue`: for in-memory message queue communication between modules,
-  - `mail`: for sending out email.
 
 ## Plugin details
 
@@ -118,49 +117,6 @@ Configure the listening socket via `tiger.config.http` or `TIGER_HTTP_HOST`/`TIG
 this.notify("queue:hello", { message: "hello, world" })
 ```
 
-### `mail`
-
-`mail` plugin allow you send out email to any known address after configured a email transport.
-
-Here is required configurations:
-
-```js
-{
-  mail: {
-    sender: "email@example.com",
-    transport: {
-      host: "some.smtp.server.com",
-      port: 465,
-      secure: true,
-      auth: {
-        user: "email@example.com",
-        pass: "password"
-      }
-    }
-  }
-}
-```
-
-#### Attribute
-
-| Attributes    	| Value                             	  |
-|---------------	|-------------------------------------	|
-| Stateless     	| Y                                 	  |
-| Message       	| Y                                 	  |
-| Messge Format 	| `{ from, to, subject, text, html }` 	|
-| `define`?     	| N                                 	  |
-| `notify`?     	| Y                                 	  |
-
-#### Example
-
-```js
-// `from` and `to` can be omitted since it can be inferred from sender and target.
-await this.notify("mail:someone@another.com", { 
-  subject: "hello", 
-  text: "hello world", 
-  html: "<p>hello world</p>" 
-});
-```
 
 ### Distributed modules
 

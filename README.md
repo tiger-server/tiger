@@ -13,7 +13,7 @@ npm install tiger-server --save
 and create `server.ts`:
 
 ```ts
-import { Tiger, http, cron, mail, queue } from "tiger-server";
+import { Tiger, http, cron, queue } from "tiger-server";
 
 async function main() {
   const tiger = new Tiger({
@@ -45,7 +45,6 @@ async function main() {
 
   await tiger.use(http);
   await tiger.use(cron);
-  await tiger.use(mail);
   await tiger.use(queue);
 
   await tiger.define({
