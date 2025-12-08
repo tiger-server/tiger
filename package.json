@@ -41,7 +41,10 @@
     "typescript": "^5.9.3"
   },
   "scripts": {
-    "example": "dotenv -e .example.env -- bun lib/bin/tiger.js run lib/example/main.js",
-    "default": "dotenv -e .env -- bun lib/bin/tiger.js run lib/example/main.js"
+    "example:bun": "dotenv -e .env -- bun bin/tiger.ts run test/runtime/runtest.ts",
+    "example:node": "tsc && dotenv -e .example.env -- node ./lib/bin/tiger.js run ./lib/test/runtime/runtest.js",
+    "distributed:bun": "dotenv -e .env -- bun bin/tiger.ts run test/runtime/runtest.ts -c .tigerconf.example.json",
+    "distributed:node": "tsc && dotenv -e .example.env -- node ./lib/bin/tiger.js run ./lib/test/runtime/runtest.js -c .tigerconf.example.json",
+    "build": "tsc"
   }
 }

@@ -1,0 +1,6 @@
+{
+  "type": "module",
+  "dependencies": {
+    "tiger-server": "^0.6.2"
+  }
+}

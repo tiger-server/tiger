@@ -1,7 +1,7 @@
-import { http, cron, example, queue, defineServer } from "../src/index.js";
-import type { HttpModule } from "../src/core/index.js";
+import { http, cron, example, queue, defineServer } from "tiger-server";
+import type { HttpModule } from "tiger-server";
 
-import distributed from "./distributed.js";
+import distributed from "./distributed.ts";
 
 export default defineServer({
   instanceId: process.env.TIGER_INSTANCE_ID ?? "tiger-9753",

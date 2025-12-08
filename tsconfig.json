@@ -1,9 +1,9 @@
 {
   "compileOnSave": true,
-  "include": ["src/**/*.ts", "src/**/*.d.ts", "example/**/*.ts", "bin/**/*.ts"],
+  "include": ["src/**/*.ts", "src/**/*.d.ts", "test/**/*.ts", "bin/**/*.ts"],
   "compilerOptions": {
-    "target": "ES2022",
-    "lib": ["es2022"],
+    "target": "esnext",
+    "lib": ["esnext"],
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
     "module": "nodenext",
