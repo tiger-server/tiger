@@ -28,6 +28,7 @@
     "radash": "^12.1.1",
     "sequelize": "^6.37.7",
     "sqlite3": "^5.1.7",
+    "dotenv": "^17.2.3",
     "umzug": "^3.8.2"
   },
   "devDependencies": {
@@ -35,7 +36,6 @@
     "@types/express": "^5.0.5",
     "@types/node": "^24.10.1",
     "@types/pg": "^8.15.6",
-    "dotenv": "^17.2.3",
     "dotenv-cli": "^11.0.0",
     "sequelize-cli": "^6.6.3",
     "typescript": "^5.9.3"
