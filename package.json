@@ -1,6 +1,6 @@
 {
   "name": "tiger-server",
-  "version": "0.5.3",
+  "version": "0.6.0",
   "description": "Even simple than trigger",
   "main": "src/index.ts",
   "type": "module",
