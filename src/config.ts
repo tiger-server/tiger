@@ -117,8 +117,8 @@ export function resolveDistributedConfig(
     parseNumber(process.env.TIGER_DISTRIBUTED_MAX_QUEUE, 100);
   const levelDbPath = path.resolve(
     distributed?.levelDbPath ??
-      process.env.TIGER_DISTRIBUTED_LEVEL_PATH ??
-      DEFAULT_DISTRIBUTED_LEVEL_DB
+    process.env.TIGER_DISTRIBUTED_LEVEL_PATH ??
+    DEFAULT_DISTRIBUTED_LEVEL_DB
   );
   return {
     driver,
@@ -132,3 +132,36 @@ export function resolveDistributedConfig(
 export function resolveInstanceId(config?: TigerConfig): string {
   return config?.instanceId ?? process.env.TIGER_INSTANCE_ID ?? nanoid();
 }
+
+export const DEFAULT_CONFIG: TigerConfig = {
+  instanceId: process.env.TIGER_INSTANCE_ID,
+  http: {
+    port: Number(process.env.TIGER_HTTP_PORT ?? "9527"),
+    host: process.env.TIGER_HTTP_HOST ?? "0.0.0.0"
+  },
+  monitor: {
+    port: Number(process.env.TIGER_MONITOR_PORT ?? "9753"),
+    host: process.env.TIGER_MONITOR_HOST ?? "0.0.0.0",
+    disabled: process.env.TIGER_MONITOR_DISABLED === "1",
+    dbPath: process.env.TIGER_MONITOR_DB ?? ".tiger-monitor"
+  },
+  cron: {
+    pollIntervalMs: Number(process.env.TIGER_CRON_POLL_INTERVAL_MS ?? "1000"),
+    requeueDelayMs: Number(process.env.TIGER_CRON_REQUEUE_DELAY_MS ?? "5000"),
+    levelDbPath: process.env.TIGER_CRON_LEVEL_PATH ?? ".tiger-cron"
+  },
+  distributed: {
+    driver: (process.env.TIGER_DISTRIBUTED_DRIVER in ["level", "postgres"] ? 
+        process.env.TIGER_DISTRIBUTED_DRIVER as "level" | "postgres" : undefined) ?? "level",
+    levelDbPath: process.env.TIGER_DISTRIBUTED_LEVEL_PATH ?? DEFAULT_DISTRIBUTED_LEVEL_DB,
+    heartbeatIntervalMs: parseNumber(
+      process.env.TIGER_DISTRIBUTED_HEARTBEAT_INTERVAL,
+      DEFAULT_HEARTBEAT_INTERVAL
+    ),
+    heartbeatTimeoutMs: parseNumber(
+      process.env.TIGER_DISTRIBUTED_HEARTBEAT_TIMEOUT,
+      DEFAULT_HEARTBEAT_TIMEOUT
+    ),
+    maxQueueLength: parseNumber(process.env.TIGER_DISTRIBUTED_MAX_QUEUE, 100),
+  },
+};

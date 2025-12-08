@@ -8,10 +8,11 @@ Tiger engine holds everything required to run the app by using plugins and defin
 
 Here is all the methods you can use on tiger engine:
 
+ - `Tiger#defineServer(configs?, serverCallback)`: Main entrypoint for user to define a server,
  - `Tiger#define(module)`: async method to define a new module,
  - `Tiger#use(plugin)`: async method to use a plugin,
  - `Tiger#register(resolver)`: to register a protocol resolver, only can be used in plugin definition,
- - `Tiger#serve()`: async main method to start the tiger server,
+ - `Tiger#apply(serverDefs)`: include submodules for defined servers,
 
 ## Plugins
 

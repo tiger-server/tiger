@@ -15,7 +15,6 @@ interface HttpConfig {
 interface MonitorConfig {
   port?: number;
   host?: string;
-  basePath?: string;
   disabled?: boolean;
   dbPath?: string;
 }

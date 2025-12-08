@@ -12,42 +12,14 @@ npm install tiger-server --save
 
 and create `server.ts`:
 
-```ts
+```typescript
 import { Tiger, http, cron, queue } from "tiger-server";
+import type { QueueModule, CronModule, HttpModule } from "tiger-server";
 
-async function main() {
-  const tiger = new Tiger({
-    instanceId: process.env.TIGER_INSTANCE_ID,
-    http: {
-      port: Number(process.env.TIGER_HTTP_PORT ?? "9527"),
-      host: process.env.TIGER_HTTP_HOST ?? "0.0.0.0"
-    },
-    monitor: {
-      port: Number(process.env.TIGER_MONITOR_PORT ?? "9753"),
-      host: process.env.TIGER_MONITOR_HOST ?? "0.0.0.0",
-      basePath: process.env.TIGER_MONITOR_BASE_PATH ?? "/tiger/monitor",
-      disabled: process.env.TIGER_MONITOR_DISABLED === "1"
-    },
-    cron: {
-      pollIntervalMs: Number(process.env.TIGER_CRON_POLL_INTERVAL_MS ?? "1000"),
-      requeueDelayMs: Number(process.env.TIGER_CRON_REQUEUE_DELAY_MS ?? "5000"),
-      levelDbPath: process.env.TIGER_CRON_LEVEL_PATH ?? ".tiger-cron"
-    },
-    distributed: process.env.TIGER_DISTRIBUTED_DRIVER
-      ? {
-          driver: process.env.TIGER_DISTRIBUTED_DRIVER as "level" | "postgres",
-          levelDbPath:
-            process.env.TIGER_DISTRIBUTED_LEVEL_PATH ?? ".tiger-distributed"
-        }
-      : undefined
-    }
-  });
+export default defineServer(async (tiger) => {
+  await tiger.use(http, cron, queue);
 
-  await tiger.use(http);
-  await tiger.use(cron);
-  await tiger.use(queue);
-
-  await tiger.define({
+  await tiger.define<QueueModule<{message: string}>>({
     id: "hello",
     target: "queue:hello",
     async process(_state, message) {
@@ -55,7 +27,7 @@ async function main() {
     }
   });
 
-  await tiger.define({
+  await tiger.define<CronModule<{count: number}>>({
     id: "cron",
     target: "cron:*/5 * * * * *",
     async process({ count = 0 }) {
@@ -65,7 +37,7 @@ async function main() {
     }
   });
 
-  await tiger.define({
+  await tiger.define<HttpModule>({
     id: "request",
     target: "http:/hello",
     async process(_state, { req, res }) {
@@ -73,11 +45,7 @@ async function main() {
       res.send("success!")
     }
   });
-
-  await tiger.serve();
-}
-
-void main();
+});
 ```
 
 Run it with Node.js 22.6+:

@@ -15,7 +15,6 @@ import {
 import { DISTRIBUTED_STATE_SYMBOL } from "./core/common.ts";
 import {
   initDistributedCoordinator,
-  getDistributedCoordinator,
 } from "./distributed/index.ts";
 import type { DistributedCoordinator } from "./distributed/controller.ts";
 import { createPersistenceProvider } from "./persistence/provider.ts";
@@ -35,6 +34,11 @@ type ModuleParam<M> = M extends Module<infer P, any> ? P : never;
 type ModuleState<M> = M extends Module<any, infer S> ? S : never;
 
 export type TigerCall = (tiger: Tiger) => Promise<void> | void
+
+export type TigerSetup = {
+  config?: TigerConfig,
+  call: TigerCall
+};
 
 export interface TigerPlugin {
   readonly id: string;
@@ -80,8 +84,8 @@ export class Tiger {
       this._distributedConfig?.levelDbPath ??
       path.resolve(
         this.config.distributed?.levelDbPath ??
-          process.env.TIGER_DISTRIBUTED_LEVEL_PATH ??
-          ".tiger-level"
+        process.env.TIGER_DISTRIBUTED_LEVEL_PATH ??
+        ".tiger-level"
       );
     this._persistence = createPersistenceProvider({
       driver: persistenceDriver,
@@ -99,12 +103,14 @@ export class Tiger {
     }
   }
 
-  async use(plugin: TigerPlugin): Promise<Tiger> {
-    if (this._plugins[plugin.id] === undefined) {
-      this._plugins[plugin.id] = plugin;
-      await plugin.setup(this)
-    } else {
-      this._warn(`Existed plugin: ${plugin.id}`)
+  async use(...plugins: TigerPlugin[]): Promise<Tiger> {
+    for (const plugin of plugins) {
+      if (this._plugins[plugin.id] === undefined) {
+        this._plugins[plugin.id] = plugin;
+        await plugin.setup(this)
+      } else {
+        this._warn(`Existed plugin: ${plugin.id}`)
+      }
     }
     return this;
   }
@@ -158,10 +164,10 @@ export class Tiger {
         param,
         targetModule as any,
         async (nextTarget, nextParam) => {
-        const handled = await this._enqueueDistributed(nextTarget, nextParam);
-        if (!handled) {
-          await this._notify(target, nextTarget, nextParam);
-        }
+          const handled = await this._enqueueDistributed(nextTarget, nextParam);
+          if (!handled) {
+            await this._notify(target, nextTarget, nextParam);
+          }
         }
       );
     } else {
@@ -188,13 +194,13 @@ export class Tiger {
   }
 
   private _log(log: string, scope?: string) {
-    this._logger.info(`${scope ? `[${scope}] -- `: ""}${log}`);
+    this._logger.info(`${scope ? `[${scope}] -- ` : ""}${log}`);
   }
   private _error(log: string, scope?: string) {
-    this._logger.error(`${scope ? `[${scope}] -- `: ""}${log}`);
+    this._logger.error(`${scope ? `[${scope}] -- ` : ""}${log}`);
   }
   private _warn(log: string, scope?: string) {
-    this._logger.warn(`${scope ? `[${scope}] -- `: ""}${log}`);
+    this._logger.warn(`${scope ? `[${scope}] -- ` : ""}${log}`);
   }
 
   private _ensureDistributed(): DistributedCoordinator {
@@ -260,7 +266,7 @@ export class Tiger {
       notify<T>(target: string, param: T) {
         return tiger._notify(handler.id, target, param);
       },
-      
+
       log(message: string) {
         tiger._log(message, handler.id);
       },
@@ -268,7 +274,7 @@ export class Tiger {
       error(message: string) {
         tiger._error(message, handler.id);
       },
-  
+
       state(data?: Partial<State>): State {
         const { id } = handler;
         if (handler.distributed) {
@@ -292,6 +298,12 @@ export class Tiger {
     }
   }
 
+  async apply(setup: TigerSetup): Promise<void> {
+    if (setup.config) {
+      this._log(`Error: Tiger setup config is not supported in runtime, please use defineServer to define the server`);
+    }
+    await setup.call(this);
+  }
 }
 
 export type Extension<Param, State> = {
@@ -299,4 +311,16 @@ export type Extension<Param, State> = {
   log(message: string): void;
   error(message: string): void;
   state(data?: Partial<State>): State;
+}
+
+export function defineServer(call: TigerCall): TigerSetup;
+export function defineServer(config: TigerConfig, call: TigerCall): TigerSetup
+export function defineServer(configOrCall: TigerConfig | TigerCall, call?: TigerCall): TigerSetup {
+  let config: TigerConfig | undefined = undefined;
+  if (typeof configOrCall === "function") {
+    call = configOrCall;
+  } else {
+    config = configOrCall;
+  }
+  return { config, call };
 }

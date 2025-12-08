@@ -10,6 +10,7 @@ const DATABASE_URL =
 
 export const sequelize = new Sequelize(DATABASE_URL, {
   logging: false,
+  dialect: "postgres",
 });
 
 export class DistributedNodeModel extends Model<
