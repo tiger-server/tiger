@@ -3,24 +3,24 @@ import path from "node:path";
 
 import { nanoid } from "nanoid";
 
-import type { Resolver } from "./resolver.ts";
-import type { TigerConfig, Module, Target } from "./types.ts";
-import { getLogger, type Logger } from "./logger.ts";
-import monitor, { configureMonitorServer, MANAGEMENT_BASE_PATH, configureManagementProvider, MONITOR_BASE_PATH } from "./monitor.ts";
+import type { Resolver } from "./resolver.js";
+import type { TigerConfig, Module, Target } from "./types.js";
+import { getLogger, type Logger } from "./logger.js";
+import monitor, { configureMonitorServer, MANAGEMENT_BASE_PATH, configureManagementProvider, MONITOR_BASE_PATH } from "./monitor.js";
 import {
   resolveDistributedConfig,
   resolveMonitorConfig,
   resolveInstanceId,
-} from "./config.ts";
-import { DISTRIBUTED_STATE_SYMBOL } from "./core/common.ts";
+} from "./config.js";
+import { DISTRIBUTED_STATE_SYMBOL } from "./core/common.js";
 import {
   initDistributedCoordinator,
-} from "./distributed/index.ts";
-import type { DistributedCoordinator } from "./distributed/controller.ts";
-import { createPersistenceProvider } from "./persistence/provider.ts";
-import type { PersistenceProvider } from "./persistence/index.ts";
+} from "./distributed/index.js";
+import type { DistributedCoordinator } from "./distributed/controller.js";
+import { createPersistenceProvider } from "./persistence/provider.js";
+import type { PersistenceProvider } from "./persistence/index.js";
 
-export type { TigerConfig, Module, Target } from "./types.ts";
+export type { TigerConfig, Module, Target } from "./types.js";
 
 export function makeTargetFromString(target: string): Target {
   const EXTRACTOR = /(?<protocol>\w+):(?<path>.+)/;

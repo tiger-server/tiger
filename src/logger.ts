@@ -13,7 +13,7 @@ const prettyStream = pretty({
 const streams: pino.StreamEntry[] = [{ stream: prettyStream }];
 
 if (logFile) {
-  streams.push({ stream: pino.destination({ dest: logFile, sync: false }) });
+  streams.push({ stream: pino.destination({ dest: logFile, sync: true }) });
 }
 
 const destination =

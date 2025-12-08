@@ -4,17 +4,16 @@ import express from "express";
 import cors from "cors";
 import { Level } from "level";
 
-import type { ExtendedModule } from "./tiger.ts";
-import { getLogger } from "./logger.ts";
+import type { ExtendedModule } from "./tiger.js";
+import { getLogger } from "./logger.js";
 import {
   resolveMonitorConfig,
   type ResolvedMonitorConfig,
-} from "./config.ts";
+} from "./config.js";
 import {
-  getDistributedCoordinator,
   getDistributedHeartbeatTimeout,
-} from "./distributed/index.ts";
-import type { PersistenceProvider } from "./persistence/index.ts";
+} from "./distributed/index.js";
+import type { PersistenceProvider } from "./persistence/index.js";
 
 const logger = getLogger("monitor");
 let managementProvider: PersistenceProvider | undefined;

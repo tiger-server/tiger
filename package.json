@@ -1,8 +1,8 @@
 {
   "name": "tiger-server",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Even simple than trigger",
-  "main": "src/index.ts",
+  "main": "lib/src/index.js",
   "type": "module",
   "repository": "https://github.com/kenpusney/tiger",
   "author": "Kimmy Leo",
@@ -11,8 +11,8 @@
     "node": ">=22.6.0"
   },
   "bin": {
-    "tiger-server": "./bin/tiger.ts",
-    "tiger": "./bin/tiger.ts"
+    "tiger-server": "./lib/bin/tiger.js",
+    "tiger": "./lib/bin/tiger.js"
   },
   "dependencies": {
     "commander": "^14.0.2",
@@ -41,7 +41,7 @@
     "typescript": "^5.9.3"
   },
   "scripts": {
-    "example": "dotenv -e .example.env -- node bin/tiger.ts run example/main.ts",
-    "default": "dotenv -e .env -- node bin/tiger.ts run example/main.ts"
+    "example": "dotenv -e .example.env -- bun lib/bin/tiger.js run lib/example/main.js",
+    "default": "dotenv -e .env -- bun lib/bin/tiger.js run lib/example/main.js"
   }
 }

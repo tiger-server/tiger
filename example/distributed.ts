@@ -1,9 +1,9 @@
-import type { CronModule, ExampleModule } from "../src/index.ts";
-import { defineServer } from "../src/tiger.ts";
+import { defineServer } from "../src/index.js";
+import type { ExampleModule, CronModule } from "../src/index.js";
 
 export default defineServer(async (tiger) => {
     
-  await tiger.define<ExampleModule, { count: number }>({
+  await tiger.define<ExampleModule, {count: number}>({
     id: "distributed-hello",
     target: "example:hello",
     distributed: true,

@@ -1,7 +1,7 @@
 import path from "node:path";
 import { nanoid } from "nanoid";
 
-import type { TigerConfig } from "./types.ts";
+import type { TigerConfig } from "./types.js";
 
 const DEFAULT_HTTP_PORT = 9527;
 const DEFAULT_HTTP_HOST = "0.0.0.0";

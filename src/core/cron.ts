@@ -1,14 +1,14 @@
 import { CronExpressionParser } from "cron-parser";
 
-import type { TigerPlugin, Tiger, ExtendedModule } from "../tiger.ts";
-import { BaseResolver } from "../resolver.ts";
-import { getLogger, type Logger } from "../logger.ts";
-import { resolveCronConfig, type ResolvedCronConfig } from "../config.ts";
-import type { CronScheduleStore } from "./cron/scheduler.ts";
-import { createLevelScheduleStore } from "./cron/level-store.ts";
-import { createPostgresScheduleStore } from "./cron/postgres-store.ts";
-import { dispatchModule } from "../runner.ts";
-import { getDistributedCoordinator } from "../distributed/index.ts";
+import type { TigerPlugin, Tiger, ExtendedModule } from "../tiger.js";
+import { BaseResolver } from "../resolver.js";
+import { getLogger, type Logger } from "../logger.js";
+import { resolveCronConfig, type ResolvedCronConfig } from "../config.js";
+import type { CronScheduleStore } from "./cron/scheduler.js";
+import { createLevelScheduleStore } from "./cron/level-store.js";
+import { createPostgresScheduleStore } from "./cron/postgres-store.js";
+import { dispatchModule } from "../runner.js";
+import { getDistributedCoordinator } from "../distributed/index.js";
 
 export type CronModule<State> = ExtendedModule<object, State>;
 
@@ -20,7 +20,7 @@ type CronModuleEntry<State> = {
 const sleep = (ms: number) =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
-export default new (class implements TigerPlugin {
+class CronPlugin implements TigerPlugin {
   id: string = "cron";
 
   private _logger: Logger = getLogger("cron");
@@ -248,4 +248,6 @@ export default new (class implements TigerPlugin {
       return false;
     }
   }
-})();
+};
+
+export default new CronPlugin();

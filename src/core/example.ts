@@ -1,8 +1,8 @@
 
-import type { TigerPlugin, Tiger, ExtendedModule } from "../tiger.ts";
-import { BaseResolver } from "../resolver.ts";
-import { getLogger } from "../logger.ts";
-import { processWithMutableState } from "./common.ts";
+import type { TigerPlugin, Tiger, ExtendedModule } from "../tiger.js";
+import { BaseResolver } from "../resolver.js";
+import { getLogger } from "../logger.js";
+import { processWithMutableState } from "./common.js";
 
 type ExampleModuleParam = { max: number };
 type ExampleModuleState = { number: number };

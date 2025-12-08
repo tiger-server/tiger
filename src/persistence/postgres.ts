@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { Op, Transaction, UniqueConstraintError } from "sequelize";
 
-import type { PersistenceProvider, QueueJob, PendingJob } from "./index.ts";
+import type { PersistenceProvider, QueueJob, PendingJob } from "./index.js";
 import {
   DistributedJobModel,
   DistributedModuleStateModel,
@@ -9,7 +9,7 @@ import {
   DistributedJobHistoryModel,
   ensureDatabaseConnection,
   sequelize,
-} from "../db/sequelize.ts";
+} from "../db/sequelize.js";
 
 export class PostgresPersistenceProvider implements PersistenceProvider {
   async start() {

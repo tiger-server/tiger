@@ -13,7 +13,7 @@ npm install tiger-server --save
 and create `server.ts`:
 
 ```typescript
-import { Tiger, http, cron, queue } from "tiger-server";
+import { defineServer, http, cron, queue } from "tiger-server";
 import type { QueueModule, CronModule, HttpModule } from "tiger-server";
 
 export default defineServer(async (tiger) => {
@@ -51,7 +51,7 @@ export default defineServer(async (tiger) => {
 Run it with Node.js 22.6+:
 
 ```
-node --experimental-strip-types server.ts
+npx tiger-server run server.ts
 ```
 
 This relies on Node’s native TypeScript loader, so there is no build step and the code runs directly.

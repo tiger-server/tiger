@@ -1,11 +1,11 @@
-import type { TigerPlugin, Tiger, ExtendedModule } from "../tiger.ts";
-import { BaseResolver } from "../resolver.ts";
+import type { TigerPlugin, Tiger, ExtendedModule } from "../tiger.js";
+import { BaseResolver } from "../resolver.js";
 
 import express from "express";
 import cors from "cors";
-import { getLogger } from "../logger.ts";
-import { resolveHttpConfig } from "../config.ts";
-import { dispatchModule } from "../runner.ts";
+import { getLogger } from "../logger.js";
+import { resolveHttpConfig } from "../config.js";
+import { dispatchModule } from "../runner.js";
 
 type HttpRequest = express.Request;
 type HttpResponse = express.Response;

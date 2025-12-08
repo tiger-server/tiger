@@ -1,16 +1,16 @@
 
-export { Tiger, defineServer } from "./tiger.ts"
-export * from "./core/index.ts"
+export { Tiger, defineServer } from "./tiger.js"
+export * from "./core/index.js"
 export type {
     HttpModule,
     CronModule,
     ExampleModule,
     QueueModule,
-} from "./core/index.ts"
+} from "./core/index.js"
 
-export * from "./resolver.ts"
+export * from "./resolver.js"
 export type {
     TigerConfig,
     Module,
     Target, TigerPlugin, ExtendedModule, Extension, TigerCall, TigerSetup,
-} from "./tiger.ts"
+} from "./tiger.js"

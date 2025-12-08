@@ -1,10 +1,7 @@
-import { http, cron, example, queue, defineServer } from "../src/index.ts";
-import type {
-  HttpModule,
-  QueueModule,
-} from "../src/index.ts";
+import { http, cron, example, queue, defineServer } from "../src/index.js";
+import type { HttpModule } from "../src/core/index.js";
 
-import distributed from "./distributed.ts";
+import distributed from "./distributed.js";
 
 export default defineServer({
   instanceId: process.env.TIGER_INSTANCE_ID ?? "tiger-9753",
@@ -22,7 +19,7 @@ export default defineServer({
     }
   });
 
-  await tiger.define<QueueModule<{ message: string }>>({
+  await tiger.define({
     target: "queue:hello",
     async process(_state, message) {
       this.log(JSON.stringify(message));

@@ -1,8 +1,8 @@
-import type { Logger } from "../logger.ts";
-import type { ResolvedDistributedConfig } from "../config.ts";
-import { DistributedCoordinator, type NodeMetadata } from "./controller.ts";
-import type { PersistenceProvider } from "../persistence/index.ts";
-import { Tiger } from "../tiger.ts";
+import type { Logger } from "../logger.js";
+import type { ResolvedDistributedConfig } from "../config.js";
+import { DistributedCoordinator, type NodeMetadata } from "./controller.js";
+import type { PersistenceProvider } from "../persistence/index.js";
+import { Tiger } from "../tiger.js";
 
 let coordinator: DistributedCoordinator | undefined;
 

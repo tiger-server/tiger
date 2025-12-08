@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { Level } from "level";
 
-import type { PersistenceProvider, QueueJob, PendingJob } from "./index.ts";
+import type { PersistenceProvider, QueueJob, PendingJob } from "./index.js";
 
 type NodeRecord = {
   id: string;

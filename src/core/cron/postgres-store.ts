@@ -1,7 +1,7 @@
 import { Op, Transaction } from "sequelize";
 
-import { CronScheduleModel, sequelize } from "../../db/sequelize.ts";
-import type { CronScheduleStore } from "./scheduler.ts";
+import { CronScheduleModel, sequelize } from "../../db/sequelize.js";
+import type { CronScheduleStore } from "./scheduler.js";
 
 export function createPostgresScheduleStore(): CronScheduleStore {
   return {

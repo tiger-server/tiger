@@ -1,17 +1,16 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 
-import { makeTargetFromString, type ExtendedModule, type Tiger } from "../tiger.ts";
-import type { Logger } from "../logger.ts";
-import type { ResolvedDistributedConfig } from "../config.ts";
+import { makeTargetFromString, type ExtendedModule, type Tiger } from "../tiger.js";
+import type { Logger } from "../logger.js";
+import type { ResolvedDistributedConfig } from "../config.js";
 import type {
   PersistenceProvider,
   PendingJob,
   QueueJob,
-} from "../persistence/index.ts";
+} from "../persistence/index.js";
 import {
-  processWithMutableState,
   DISTRIBUTED_STATE_SYMBOL,
-} from "../core/common.ts";
+} from "../core/common.js";
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 

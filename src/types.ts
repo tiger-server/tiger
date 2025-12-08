@@ -1,4 +1,4 @@
-import type { Extension } from "./tiger.ts";
+import type { Extension } from "./tiger.js";
 
 
 interface CronConfig {

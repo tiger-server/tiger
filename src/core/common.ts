@@ -1,7 +1,7 @@
-import type { ExtendedModule } from "../tiger.ts"
-import { getLogger } from "../logger.ts";
-import monitor from "../monitor.ts";
-import { getDistributedCoordinator } from "../distributed/index.ts";
+import type { ExtendedModule } from "../tiger.js"
+import { getLogger } from "../logger.js";
+import monitor from "../monitor.js";
+import { getDistributedCoordinator } from "../distributed/index.js";
 
 const logger = getLogger("state")
 const DISTRIBUTED_STATE_SYMBOL = Symbol("distributedState");

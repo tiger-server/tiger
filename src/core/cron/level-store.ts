@@ -2,8 +2,8 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { Level } from "level";
 
-import type { CronScheduleStore } from "./scheduler.ts";
-import type { Logger } from "../../logger.ts";
+import type { CronScheduleStore } from "./scheduler.js";
+import type { Logger } from "../../logger.js";
 
 interface LevelStoreOptions {
   dbPath: string;

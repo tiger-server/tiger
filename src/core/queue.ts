@@ -1,7 +1,7 @@
-import type { ExtendedModule, Tiger, TigerPlugin } from "../tiger.ts";
-import { BaseResolver } from "../resolver.ts";
-import { getLogger, type Logger } from "../logger.ts";
-import { dispatchModule } from "../runner.ts";
+import type { ExtendedModule, Tiger, TigerPlugin } from "../tiger.js";
+import { BaseResolver } from "../resolver.js";
+import { getLogger, type Logger } from "../logger.js";
+import { dispatchModule } from "../runner.js";
 
 export type QueueModule<Param> = ExtendedModule<Param, any>;
 
@@ -94,7 +94,8 @@ class QueueResolver<Param> extends BaseResolver<Param, any> {
   }
 }
 
-export default new (class implements TigerPlugin {
+
+class QueuePlugin implements TigerPlugin {
   id: string = "queue";
   private logger = getLogger("queue");
 
@@ -108,4 +109,6 @@ export default new (class implements TigerPlugin {
       `in-memory queue plugin initialized for protocols: ${protocols.join(", ")}`
     );
   }
-})();
+}
+
+export default new QueuePlugin();

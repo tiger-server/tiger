@@ -1,7 +1,7 @@
-import type { ExtendedModule } from "./tiger.ts"
+import type { ExtendedModule } from "./tiger.js"
 
-import { getLogger } from "./logger.ts"
-import { processWithMutableState } from "./core/common.ts"
+import { getLogger } from "./logger.js"
+import { processWithMutableState } from "./core/common.js"
 
 export interface Resolver<Param, State> {
   readonly protocol: string

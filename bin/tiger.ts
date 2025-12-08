@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-import { Command, Option } from "commander";
-import { Tiger, type TigerSetup } from "../src/index.ts";
+import { Command } from "commander";
+import { Tiger, type TigerSetup } from "../src/index.js";
 import path from "node:path";
 import { fileURLToPath } from 'node:url';
 
@@ -14,11 +14,13 @@ import dotenv from "dotenv";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const migrationsPath = path.resolve(__dirname, "..", "db", "migrations");
+
+// Determine migrations path based on whether running TS or JS
+const migrationsPath = __filename.endsWith(".ts") ?
+  path.resolve(__dirname, "..", "db", "migrations") :
+  path.resolve(__dirname, "..", "..", "db", "migrations");
 
 const program = new Command("tiger-server");
-
-dotenv.config();
 
 let configPath = ".tigerconf.json";
 
@@ -28,7 +30,8 @@ program.command("setup").description("Setup Tiger Server")
   .alias("upgrade")
   .argument("[action]", "Action to perform", "up")
   .action(async (action) => {
-    const { sequelize } = await import("../src/db/sequelize.ts");
+    dotenv.config();
+    const { sequelize } = await import(path.resolve(__dirname, "..", "src", "db", "sequelize.js"));
     const umzug = new Umzug({
       migrations: {
         glob: ["*.cjs", { cwd: migrationsPath }], resolve: ({ name, path, context }) => {
@@ -61,7 +64,8 @@ program.command("setup").description("Setup Tiger Server")
 program.command("run").description("Run Tiger Server")
   .argument("<target>", "Path to the Tiger setup module")
   .action(async (target: string) => {
-    const { DEFAULT_CONFIG } = await import("../src/config.ts");
+    dotenv.config();
+    const { DEFAULT_CONFIG } = await import(path.resolve(__dirname, "..", "src", "config.js"));
     configPath = program.opts().config;
     
     let localDirConfig = {};
@@ -70,8 +74,7 @@ program.command("run").description("Run Tiger Server")
       console.log(`Loaded local config from ${localConfigPath}`);
       localDirConfig = await import(localConfigPath, { with: { type: "json" } }).then(mod => mod.default);
     } catch (e) {
-      console.log(e);
-      // No local config found, proceed with defaults
+      console.warn(`No local config found at ${configPath}, using defaults.`);
     }
 
     const tigerModulePath = path.isAbsolute(target) ? target : path.resolve(process.cwd(), target);
@@ -84,4 +87,10 @@ program.command("run").description("Run Tiger Server")
     await tiger.serve();
   });
 
-program.parse(process.argv);
+async function main() {
+  await program.parseAsync(process.argv);
+}
+
+main().catch((error) => {
+  console.error("Error running tiger-server:", error);
+});

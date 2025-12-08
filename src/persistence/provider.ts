@@ -1,6 +1,6 @@
-import type { PersistenceProvider } from "./index.ts";
-import { LevelPersistenceProvider } from "./level.ts";
-import { PostgresPersistenceProvider } from "./postgres.ts";
+import type { PersistenceProvider } from "./index.js";
+import { LevelPersistenceProvider } from "./level.js";
+import { PostgresPersistenceProvider } from "./postgres.js";
 
 export type PersistenceDriver = "level" | "postgres";
 

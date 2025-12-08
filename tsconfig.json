@@ -1,15 +1,17 @@
 {
   "compileOnSave": true,
-  "include": ["src/**/*.ts", "src/**/*.d.ts", "example/**/*.ts"],
+  "include": ["src/**/*.ts", "src/**/*.d.ts", "example/**/*.ts", "bin/**/*.ts"],
   "compilerOptions": {
     "target": "ES2022",
     "lib": ["es2022"],
-    "noEmit": true,
+    "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "allowImportingTsExtensions": true,
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "declaration": true,
+    "sourceMap": true,
     "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true
+    "allowSyntheticDefaultImports": true,
+    "outDir": "lib/"
   }
 }
