@@ -27,6 +27,7 @@ const MAX_HISTORY_LIMIT = 100;
 export const MONITOR_BASE_PATH = "/tiger/monitor";
 export const MANAGEMENT_BASE_PATH = "/tiger/manage";
 const MANAGEMENT_API_ROUTE = `${MANAGEMENT_BASE_PATH}/api/nodes`;
+const MANAGEMENT_SHUTDOWN_ROUTE = `${MANAGEMENT_BASE_PATH}/api/shutdown`;
 const MONITOR_API_ROUTE = `${MONITOR_BASE_PATH}/api/modules`;
 
 const monitorStorePath = resolveMonitorConfig().dbPath;
@@ -795,6 +796,15 @@ function registerManagementRoutes(app: express.Express) {
     const jobs = await managementProvider.listJobHistory(limit);
     res.json({ jobs });
   });
+
+  app.post(MANAGEMENT_SHUTDOWN_ROUTE, (_req, res) => {
+    logger.warn("management shutdown requested; exiting process");
+    res.status(202).json({ shuttingDown: true });
+    setTimeout(() => {
+      logger.warn("terminating process due to management request");
+      process.exit(0);
+    }, 50);
+  });
 }
 
 function renderManagementPage(): string {
@@ -859,6 +869,7 @@ function renderManagementPage(): string {
     <h1>Tiger Management</h1>
     <div class="toolbar">
       <button id="refresh-btn">Refresh</button>
+      <button id="shutdown-btn" style="background-color:#dc2626;">Terminate server</button>
       <a href="${MONITOR_BASE_PATH}" style="margin-left:auto;">View Module Monitor</a>
     </div>
     <div id="manage-status"></div>
@@ -867,10 +878,12 @@ function renderManagementPage(): string {
     <div id="jobs"></div>
     <script>
       const API_ENDPOINT = "${MANAGEMENT_API_ROUTE}";
+      const SHUTDOWN_ENDPOINT = "${MANAGEMENT_SHUTDOWN_ROUTE}";
       const statusEl = document.getElementById("manage-status");
       const nodesEl = document.getElementById("nodes");
       const jobsEl = document.getElementById("jobs");
       const refreshBtn = document.getElementById("refresh-btn");
+      const shutdownBtn = document.getElementById("shutdown-btn");
 
       async function loadData() {
         statusEl.textContent = "Loading...";
@@ -964,7 +977,7 @@ function renderManagementPage(): string {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ enabled })
           });
-          await loadNodes();
+          await loadData();
         } catch (error) {
           statusEl.textContent = error instanceof Error ? error.message : String(error);
         } finally {
@@ -1008,6 +1021,31 @@ function renderManagementPage(): string {
         event.preventDefault();
         loadData();
       });
+
+      shutdownBtn.addEventListener("click", async (event) => {
+        event.preventDefault();
+        await requestShutdown();
+      });
+
+      async function requestShutdown() {
+        if (!confirm("Terminate this tiger-server process?")) {
+          return;
+        }
+        shutdownBtn.disabled = true;
+        const previousText = shutdownBtn.textContent;
+        shutdownBtn.textContent = "Terminating...";
+        try {
+          const response = await fetch(SHUTDOWN_ENDPOINT, { method: "POST" });
+          if (!response.ok) {
+            throw new Error(await response.text());
+          }
+          statusEl.textContent = "Shutdown requested; server will exit shortly.";
+        } catch (error) {
+          statusEl.textContent = error instanceof Error ? error.message : String(error);
+          shutdownBtn.disabled = false;
+          shutdownBtn.textContent = previousText;
+        }
+      }
 
       loadData();
     </script>

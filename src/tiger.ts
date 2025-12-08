@@ -55,7 +55,7 @@ export class Tiger {
   private _logger: Logger;
   private _instanceId: string;
   private _distributed?: DistributedCoordinator;
-  private _distributedConfig?: ReturnType<typeof resolveDistributedConfig>;
+  private _distributedConfig: ReturnType<typeof resolveDistributedConfig>;
   private _monitorConfig: ReturnType<typeof resolveMonitorConfig>;
   private _targetModules: Record<string, ExtendedModule<any, any>[]> = {};
   private _persistence: PersistenceProvider;
@@ -76,17 +76,8 @@ export class Tiger {
     configureMonitorServer(this._monitorConfig);
 
     this._distributedConfig = resolveDistributedConfig(this.config);
-    const persistenceDriver =
-      this._distributedConfig?.driver ??
-      this.config.distributed?.driver ??
-      "level";
-    const levelPath =
-      this._distributedConfig?.levelDbPath ??
-      path.resolve(
-        this.config.distributed?.levelDbPath ??
-        process.env.TIGER_DISTRIBUTED_LEVEL_PATH ??
-        ".tiger-level"
-      );
+    const persistenceDriver = this._distributedConfig.driver;
+    const levelPath = path.resolve(this._distributedConfig.levelDbPath);
     this._persistence = createPersistenceProvider({
       driver: persistenceDriver,
       levelPath,
