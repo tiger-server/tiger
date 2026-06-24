@@ -45,6 +45,8 @@
     "example:node": "tsc && dotenv -e .example.env -- node ./lib/bin/tiger.js run ./lib/test/runtime/runtest.js",
     "distributed:bun": "dotenv -e .env -- bun bin/tiger.ts run test/runtime/runtest.ts -c .tigerconf.example.json",
     "distributed:node": "tsc && dotenv -e .example.env -- node ./lib/bin/tiger.js run ./lib/test/runtime/runtest.js -c .tigerconf.example.json",
-    "build": "tsc"
+    "build": "tsc",
+    "test:single": "npm run build && node --test lib/test/runtime/single-node.test.js",
+    "test": "npm run test:single"
   }
 }
